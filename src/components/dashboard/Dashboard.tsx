@@ -3,14 +3,26 @@ import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MessageSquare, Apple, Calendar, Heart, TrendingUp, Zap } from 'lucide-react';
+import { useLocalNutrition } from '@/hooks/useLocalNutrition';
+import { useLocalTasks } from '@/hooks/useLocalTasks';
+import { useLocalMood } from '@/hooks/useLocalMood';
 
-type ActiveTab = 'dashboard' | 'nutrition' | 'planner' | 'wellness';
+type ActiveTab = 'dashboard' | 'nutrition' | 'planner' | 'wellness' | 'chatbot';
 
 interface DashboardProps {
   onNavigate: (tab: ActiveTab) => void;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
+  const { getTodaysCalories } = useLocalNutrition();
+  const { getTodaysCompletedCount, getTodaysTotalCount } = useLocalTasks();
+  const { getTodaysMoodScore } = useLocalMood();
+
+  const todaysCalories = getTodaysCalories();
+  const completedTasks = getTodaysCompletedCount();
+  const totalTasks = getTodaysTotalCount();
+  const moodScore = getTodaysMoodScore();
+
   const quickActions = [
     {
       id: 'nutrition',
@@ -36,9 +48,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   ];
 
   const stats = [
-    { label: 'Today\'s Calories', value: '1,247', trend: '+12%', icon: TrendingUp },
-    { label: 'Tasks Completed', value: '8/12', trend: '67%', icon: Zap },
-    { label: 'Mood Score', value: '8.2/10', trend: '+0.3', icon: Heart },
+    { 
+      label: 'Today\'s Calories', 
+      value: todaysCalories > 0 ? todaysCalories.toString() : '0', 
+      trend: todaysCalories > 0 ? '+' + todaysCalories : '—', 
+      icon: TrendingUp 
+    },
+    { 
+      label: 'Tasks Completed', 
+      value: `${completedTasks}/${totalTasks}`, 
+      trend: totalTasks > 0 ? `${Math.round((completedTasks / totalTasks) * 100)}%` : '—', 
+      icon: Zap 
+    },
+    { 
+      label: 'Mood Score', 
+      value: moodScore !== null ? `${moodScore}/10` : '—', 
+      trend: moodScore !== null ? (moodScore >= 7 ? 'Good' : moodScore >= 4 ? 'Fair' : 'Low') : 'No data', 
+      icon: Heart 
+    },
   ];
 
   return (
@@ -113,6 +140,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
               <h3 className="font-semibold">Need help with anything?</h3>
               <p className="text-indigo-100">Ask your AI assistant - I'm here to help!</p>
             </div>
+            <Button 
+              variant="secondary" 
+              onClick={() => onNavigate('chatbot')}
+              className="ml-auto"
+            >
+              Chat Now
+            </Button>
           </div>
         </CardContent>
       </Card>

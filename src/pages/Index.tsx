@@ -7,11 +7,12 @@ import { Dashboard } from '@/components/dashboard/Dashboard';
 import { NutritionTracker } from '@/components/nutrition/NutritionTracker';
 import { DailyPlanner } from '@/components/planner/DailyPlanner';
 import { WellnessDashboard } from '@/components/wellness/WellnessDashboard';
+import { ChatbotPage } from '@/pages/ChatbotPage';
 import { Header } from '@/components/layout/Header';
 import { Navigation } from '@/components/layout/Navigation';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 
-type ActiveTab = 'dashboard' | 'nutrition' | 'planner' | 'wellness';
+type ActiveTab = 'dashboard' | 'nutrition' | 'planner' | 'wellness' | 'chatbot';
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
@@ -36,10 +37,17 @@ const Index = () => {
         return <DailyPlanner />;
       case 'wellness':
         return <WellnessDashboard />;
+      case 'chatbot':
+        return <ChatbotPage onNavigateBack={() => setActiveTab('dashboard')} />;
       default:
         return <Dashboard onNavigate={setActiveTab} />;
     }
   };
+
+  // Don't show the normal layout for chatbot page
+  if (activeTab === 'chatbot') {
+    return renderActiveComponent();
+  }
 
   return (
     <div className={`min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-indigo-950 transition-colors duration-300`}>

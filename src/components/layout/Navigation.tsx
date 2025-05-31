@@ -1,9 +1,9 @@
 
 import React from 'react';
 import { Button } from "@/components/ui/button";
-import { Home, Apple, Calendar, Heart } from 'lucide-react';
+import { Home, Apple, Calendar, Heart, MessageSquare } from 'lucide-react';
 
-type ActiveTab = 'dashboard' | 'nutrition' | 'planner' | 'wellness';
+type ActiveTab = 'dashboard' | 'nutrition' | 'planner' | 'wellness' | 'chatbot';
 
 interface NavigationProps {
   activeTab: ActiveTab;
@@ -16,6 +16,7 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onTabChange }
     { id: 'nutrition', icon: Apple, label: 'Nutrition' },
     { id: 'planner', icon: Calendar, label: 'Planner' },
     { id: 'wellness', icon: Heart, label: 'Wellness' },
+    { id: 'chatbot', icon: MessageSquare, label: 'Aurafy' },
   ];
 
   return (
