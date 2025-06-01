@@ -29,6 +29,11 @@ export const useLocalNutrition = () => {
     saveEntries(newEntries);
   };
 
+  const deleteEntry = (entryId: string) => {
+    const newEntries = entries.filter(entry => entry.id !== entryId);
+    saveEntries(newEntries);
+  };
+
   const getTodaysCalories = (): number => {
     return entries
       .filter(entry => isToday(entry.timestamp))
@@ -44,6 +49,7 @@ export const useLocalNutrition = () => {
   return {
     entries,
     addEntry,
+    deleteEntry,
     getTodaysCalories,
     getTodaysEntries
   };

@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Check, Clock, Calendar, Trash2 } from 'lucide-react';
+import { Plus, Check, Clock, Calendar, Trash2, CheckCircle } from 'lucide-react';
 import { useLocalTasks } from '@/hooks/useLocalTasks';
 import { generateId, getTimestamp, getTodayDateString, formatDate } from '@/utils/helpers';
 import { toast } from "sonner";
@@ -46,6 +46,11 @@ export const DailyPlanner: React.FC = () => {
     setNewTaskTitle('');
     setNewTaskDueDate(getTodayDateString());
     toast.success('Task added successfully!');
+  };
+
+  const handleCompleteTask = (taskId: string, title: string) => {
+    updateTask(taskId, { completed: true });
+    toast.success(`"${title}" marked as completed!`);
   };
 
   const handleToggleTask = (taskId: string, completed: boolean) => {
@@ -195,7 +200,6 @@ export const DailyPlanner: React.FC = () => {
           <div className="space-y-3">
             {displayTasks
               .sort((a, b) => {
-                // Sort by completion status, then by due date
                 if (a.completed !== b.completed) {
                   return a.completed ? 1 : -1;
                 }
@@ -243,14 +247,26 @@ export const DailyPlanner: React.FC = () => {
                         </div>
                       </div>
 
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteTask(task.id, task.title)}
-                        className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex space-x-1">
+                        {!task.completed && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleCompleteTask(task.id, task.title)}
+                            className="text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/20"
+                          >
+                            <CheckCircle className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteTask(task.id, task.title)}
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>

@@ -69,35 +69,59 @@ export const ChatbotPage: React.FC<ChatbotPageProps> = ({ onNavigateBack }) => {
     const intent = chatService.detectIntent(userMessage);
     const context: any = {};
 
-    if (intent === 'nutrition_query') {
+    // For cross-analysis queries, include all relevant data
+    if (intent === 'cross_analysis') {
       context.nutritionData = {
         todaysCalories: getTodaysCalories(),
         todaysEntries: getTodaysEntries(),
         totalEntries: getTodaysEntries().length
       };
-    }
-
-    if (intent === 'task_query') {
       context.taskData = {
         todaysTasks: getTodaysTasks(),
         completedCount: getTodaysCompletedCount(),
         totalCount: getTodaysTotalCount(),
         pendingTasks: getTodaysTasks().filter(task => !task.completed)
       };
-    }
-
-    if (intent === 'mood_query') {
       context.moodData = {
         todaysMood: getTodaysMoodScore(),
         latestMood: getLatestMood(),
         weeklyAverage: getWeeklyAverage()
       };
-    }
-
-    if (intent === 'symptom_query') {
       context.symptomData = {
         recentSymptoms: symptoms.slice(0, 5)
       };
+    } else {
+      // Include specific context based on intent
+      if (intent === 'nutrition_query') {
+        context.nutritionData = {
+          todaysCalories: getTodaysCalories(),
+          todaysEntries: getTodaysEntries(),
+          totalEntries: getTodaysEntries().length
+        };
+      }
+
+      if (intent === 'task_query') {
+        context.taskData = {
+          todaysTasks: getTodaysTasks(),
+          completedCount: getTodaysCompletedCount(),
+          totalCount: getTodaysTotalCount(),
+          pendingTasks: getTodaysTasks().filter(task => !task.completed)
+        };
+      }
+
+      if (intent === 'mood_query') {
+        context.moodData = {
+          todaysMood: getTodaysMoodScore(),
+          latestMood: getLatestMood(),
+          weeklyAverage: getWeeklyAverage()
+        };
+      }
+
+      if (intent === 'symptom_query') {
+        context.symptomData = {
+          recentSymptoms: symptoms.slice(0, 5)
+        };
+      }
     }
 
     return context;
@@ -249,19 +273,27 @@ export const ChatbotPage: React.FC<ChatbotPageProps> = ({ onNavigateBack }) => {
               placeholder="Type your message..."
               disabled={isLoading}
               rows={1}
-              className="resize-none pr-10"
+              className="resize-none pr-20"
             />
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleVoiceInput}
-              className={`absolute right-2 top-1/2 transform -translate-y-1/2 ${
-                isListening ? 'text-red-500' : 'text-gray-400'
-              }`}
-              disabled={isLoading}
-            >
-              {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-            </Button>
+            <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex space-x-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleVoiceInput}
+                className={`${isListening ? 'text-red-500' : 'text-gray-400'}`}
+                disabled={isLoading}
+              >
+                {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowToolkit(true)}
+                disabled={isLoading}
+              >
+                <Wrench className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
           <Button
             onClick={handleSendMessage}

@@ -1,8 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { Toaster } from "@/components/ui/toaster";
-import { FloatingChatButton } from '@/components/chat/FloatingChatButton';
-import { ChatModal } from '@/components/chat/ChatModal';
 import { Dashboard } from '@/components/dashboard/Dashboard';
 import { NutritionTracker } from '@/components/nutrition/NutritionTracker';
 import { DailyPlanner } from '@/components/planner/DailyPlanner';
@@ -16,7 +14,6 @@ type ActiveTab = 'dashboard' | 'nutrition' | 'planner' | 'wellness' | 'chatbot';
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
-  const [isChatOpen, setIsChatOpen] = useState(false);
   const [darkMode, setDarkMode] = useLocalStorage('darkMode', false);
 
   useEffect(() => {
@@ -59,13 +56,6 @@ const Index = () => {
         </main>
 
         <Navigation activeTab={activeTab} onTabChange={setActiveTab} />
-        
-        <FloatingChatButton onClick={() => setIsChatOpen(true)} />
-        
-        <ChatModal 
-          isOpen={isChatOpen} 
-          onClose={() => setIsChatOpen(false)} 
-        />
       </div>
       <Toaster />
     </div>

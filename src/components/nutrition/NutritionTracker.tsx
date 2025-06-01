@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Search, Plus, TrendingUp, Upload, Camera } from 'lucide-react';
 import { useLocalNutrition } from '@/hooks/useLocalNutrition';
 import { useLocalSymptoms } from '@/hooks/useLocalSymptoms';
-import { nutritionService } from '@/services/nutritionService';
+import { nutritionService, analyzeFoodImage } from '@/services/nutritionService';
 import { lookupSymptom } from '@/api/symptomsClient';
 import { generateId, getTimestamp, formatDateTime } from '@/utils/helpers';
 import { toast } from "sonner";
@@ -22,7 +21,7 @@ export const NutritionTracker: React.FC = () => {
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const { entries, addEntry } = useLocalNutrition();
+  const { entries, addEntry, deleteEntry } = useLocalNutrition();
   const { symptoms, addSymptom } = useLocalSymptoms();
 
   const handleSearch = async () => {
@@ -48,6 +47,48 @@ export const NutritionTracker: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsLoading(true);
+    try {
+      // Analyze the image to detect food
+      const detectedFood = await analyzeFoodImage(file);
+      
+      // Get nutrition data for detected food
+      const result = await nutritionService.searchNutrition(detectedFood);
+      
+      // Create image preview URL
+      const imageUrl = URL.createObjectURL(file);
+      
+      const newEntry = {
+        id: generateId(),
+        query: `Photo: ${detectedFood}`,
+        result: { items: result },
+        timestamp: getTimestamp(),
+        isImageBased: true,
+        imageUrl: imageUrl,
+      };
+      
+      addEntry(newEntry);
+      toast.success('Food image analyzed successfully!');
+    } catch (error) {
+      console.error('Image analysis error:', error);
+      toast.error('Unable to analyze image. Please try again or log manually.');
+    } finally {
+      setIsLoading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleDeleteEntry = (entryId: string) => {
+    deleteEntry(entryId);
+    toast.success('Nutrition entry deleted');
   };
 
   const handleSymptomSearch = async () => {
@@ -84,44 +125,6 @@ export const NutritionTracker: React.FC = () => {
       toast.error('Failed to fetch symptom data. Please try again.');
     } finally {
       setIsSymptomLoading(false);
-    }
-  };
-
-  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    setIsLoading(true);
-    try {
-      // Create image preview URL
-      const imageUrl = URL.createObjectURL(file);
-      
-      // For MVP, we'll simulate food recognition
-      // In production, integrate with a vision API
-      const simulatedCaption = "2 scrambled eggs, 1 slice whole wheat toast, 1 banana";
-      
-      // Parse the caption and get nutrition data
-      const result = await nutritionService.searchNutrition(simulatedCaption);
-      
-      const newEntry = {
-        id: generateId(),
-        query: `Photo: ${simulatedCaption}`,
-        result: { items: result },
-        timestamp: getTimestamp(),
-        isImageBased: true,
-        imageUrl: imageUrl,
-      };
-      
-      addEntry(newEntry);
-      toast.success('Food image analyzed successfully!');
-    } catch (error) {
-      console.error('Image analysis error:', error);
-      toast.error('Unable to analyze image. Please try again or log manually.');
-    } finally {
-      setIsLoading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
     }
   };
 
@@ -245,6 +248,7 @@ export const NutritionTracker: React.FC = () => {
                 entry={entry}
                 isExpanded={expandedCard === entry.id}
                 onToggle={() => setExpandedCard(expandedCard === entry.id ? null : entry.id)}
+                onDelete={() => handleDeleteEntry(entry.id)}
               />
             ))}
           </div>

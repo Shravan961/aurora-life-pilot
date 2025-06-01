@@ -48,39 +48,8 @@ class ChatService {
     }
   }
 
-  private async callCohereAPI(message: string, context?: ChatContext): Promise<string> {
-    try {
-      const systemPrompt = this.buildSystemPrompt(context);
-      
-      const response = await fetch('https://api.cohere.ai/v1/generate', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${COHERE_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'command',
-          prompt: `${systemPrompt}\n\nUser: ${message}\nAurafy:`,
-          max_tokens: 500,
-          temperature: 0.7,
-          stop_sequences: ['\n\n'],
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Cohere API error: ${response.status}`);
-      }
-
-      const data = await response.json();
-      return data.generations[0]?.text?.trim() || 'I apologize, but I encountered an issue processing your request.';
-    } catch (error) {
-      console.error('Cohere API error:', error);
-      throw error;
-    }
-  }
-
   private buildSystemPrompt(context?: ChatContext): string {
-    let prompt = `You are Aurafy, a helpful AI life co-pilot assistant. Be friendly, supportive, and provide practical advice. Keep responses concise but helpful.`;
+    let prompt = `You are Aurafy, a helpful AI life co-pilot assistant. Be friendly, supportive, and provide practical advice. Keep responses concise but helpful. You can analyze patterns across nutrition, mood, tasks, and symptoms to provide insights.`;
     
     if (context?.nutritionData) {
       prompt += `\n\nNutrition Context: The user has logged the following nutrition data: ${JSON.stringify(context.nutritionData)}`;
@@ -98,11 +67,28 @@ class ChatService {
       prompt += `\n\nSymptom Context: The user has logged these symptoms: ${JSON.stringify(context.symptomData)}`;
     }
     
+    // Add cross-section analysis capability
+    if (context && Object.keys(context).length > 1) {
+      prompt += `\n\nYou can analyze patterns and connections between the user's nutrition, mood, tasks, and symptoms. Look for relationships like:
+      - How nutrition affects mood and energy levels
+      - Whether symptoms correlate with eating patterns
+      - How mood impacts task completion
+      - Patterns between lifestyle factors and wellbeing`;
+    }
+    
     return prompt;
   }
 
   public detectIntent(message: string): string {
     const lowerMessage = message.toLowerCase();
+    
+    // Cross-section analysis patterns
+    if (lowerMessage.includes('pattern') || lowerMessage.includes('relationship') || lowerMessage.includes('connection') || 
+        (lowerMessage.includes('mood') && (lowerMessage.includes('food') || lowerMessage.includes('nutrition'))) ||
+        (lowerMessage.includes('symptom') && (lowerMessage.includes('food') || lowerMessage.includes('mood'))) ||
+        lowerMessage.includes('related to') || lowerMessage.includes('affect')) {
+      return 'cross_analysis';
+    }
     
     if (lowerMessage.includes('task') || lowerMessage.includes('todo') || lowerMessage.includes('due') || lowerMessage.includes('complete')) {
       return 'task_query';
@@ -125,17 +111,10 @@ class ChatService {
 
   async sendMessage(message: string, context?: ChatContext): Promise<string> {
     try {
-      // Try Groq first for speed
       return await this.callGroqAPI(message, context);
     } catch (error) {
-      console.warn('Groq failed, trying Cohere:', error);
-      try {
-        // Fallback to Cohere
-        return await this.callCohereAPI(message, context);
-      } catch (cohereError) {
-        console.error('Both APIs failed:', cohereError);
-        return 'I apologize, but I\'m having trouble connecting right now. Please try again in a moment.';
-      }
+      console.error('Chat service error:', error);
+      return 'I apologize, but I\'m having trouble connecting right now. Please try again in a moment.';
     }
   }
 }

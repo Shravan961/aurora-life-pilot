@@ -2,7 +2,7 @@
 import React from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Minus, Image } from 'lucide-react';
+import { Plus, Minus, Image, Trash2 } from 'lucide-react';
 import { NutritionEntry } from '@/types';
 import { formatDateTime } from '@/utils/helpers';
 
@@ -10,9 +10,10 @@ interface NutritionCardProps {
   entry: NutritionEntry;
   isExpanded: boolean;
   onToggle: () => void;
+  onDelete: () => void;
 }
 
-export const NutritionCard: React.FC<NutritionCardProps> = ({ entry, isExpanded, onToggle }) => {
+export const NutritionCard: React.FC<NutritionCardProps> = ({ entry, isExpanded, onToggle, onDelete }) => {
   const totalCalories = entry.result.items.reduce((sum, item) => sum + item.calories, 0);
 
   return (
@@ -30,14 +31,23 @@ export const NutritionCard: React.FC<NutritionCardProps> = ({ entry, isExpanded,
               {formatDateTime(entry.timestamp)} • {totalCalories} calories
             </p>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onToggle}
-            className="ml-2"
-          >
-            {isExpanded ? <Minus className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-          </Button>
+          <div className="flex space-x-1 ml-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onToggle}
+            >
+              {isExpanded ? <Minus className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onDelete}
+              className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
 
         {entry.imageUrl && (
