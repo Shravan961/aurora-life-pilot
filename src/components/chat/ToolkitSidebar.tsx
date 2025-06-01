@@ -10,6 +10,7 @@ import { AISolverTool } from './tools/AISolverTool';
 import { AISearchTool } from './tools/AISearchTool';
 import { MemoTool } from './tools/MemoTool';
 import { VoiceTool } from './tools/VoiceTool';
+import { LiveVoiceTool } from './tools/LiveVoiceTool';
 import { CloneTool } from './tools/CloneTool';
 import { CraftArtifactsTool } from './tools/CraftArtifactsTool';
 import { ChatPDFTool } from './tools/ChatPDFTool';
@@ -48,6 +49,8 @@ export const ToolkitSidebar: React.FC<ToolkitSidebarProps> = ({
         return <MemoTool onSendToChat={onSendToChat} />;
       case 'Voice':
         return <VoiceTool onSendToChat={onSendToChat} />;
+      case 'Live Voice':
+        return <LiveVoiceTool onSendToChat={onSendToChat} />;
       case 'Clone':
         return <CloneTool onSendToChat={onSendToChat} />;
       case 'Craft Artifacts':

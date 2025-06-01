@@ -169,18 +169,25 @@ export const ChatbotPage: React.FC<ChatbotPageProps> = ({ onNavigateBack }) => {
     }
   };
 
-  const handleVoiceInput = () => {
+  const handleVoiceInput = async () => {
     if (!recognition) {
       toast.error('Speech recognition not supported in this browser');
       return;
     }
 
-    if (isListening) {
-      recognition.stop();
-      setIsListening(false);
-    } else {
-      setIsListening(true);
-      recognition.start();
+    // Request permission first
+    try {
+      await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      if (isListening) {
+        recognition.stop();
+        setIsListening(false);
+      } else {
+        setIsListening(true);
+        recognition.start();
+      }
+    } catch (error) {
+      toast.error('Microphone permission denied');
     }
   };
 
@@ -201,19 +208,20 @@ export const ChatbotPage: React.FC<ChatbotPageProps> = ({ onNavigateBack }) => {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-indigo-950">
+    <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700">
+      <div className="flex items-center justify-between p-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
         <div className="flex items-center space-x-3">
           <Button variant="ghost" size="sm" onClick={onNavigateBack}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <div className="w-8 h-8 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-sm">A</span>
+          <div className="w-10 h-10 bg-gradient-to-r from-green-400 to-blue-500 rounded-full flex items-center justify-center">
+            <span className="text-white font-bold text-lg">A</span>
           </div>
-          <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-            Aurafy Chat
-          </h1>
+          <div>
+            <h1 className="text-lg font-semibold text-gray-900 dark:text-white">Aurafy</h1>
+            <p className="text-xs text-green-500">Online</p>
+          </div>
         </div>
         
         <Button variant="ghost" size="sm" onClick={() => setShowToolkit(true)}>
@@ -224,33 +232,34 @@ export const ChatbotPage: React.FC<ChatbotPageProps> = ({ onNavigateBack }) => {
       <div className="flex flex-1 overflow-hidden">
         {/* Chat Messages */}
         <div className="flex-1 flex flex-col">
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="flex-1 overflow-y-auto p-4 space-y-3" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"%3E%3Cg fill="none" fill-rule="evenodd"%3E%3Cg fill="%23f0f0f0" fill-opacity="0.1"%3E%3Ccircle cx="30" cy="30" r="2"/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")' }}>
             {messages.length === 0 && (
-              <div className="text-center text-gray-600 dark:text-gray-400 mt-8">
-                <div className="w-16 h-16 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <span className="text-white font-bold text-xl">A</span>
+              <div className="text-center text-gray-500 dark:text-gray-400 mt-8">
+                <div className="w-20 h-20 bg-gradient-to-r from-green-400 to-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <span className="text-white font-bold text-2xl">A</span>
                 </div>
-                <h3 className="text-lg font-semibold mb-2">Welcome to Aurafy!</h3>
-                <p>I'm your AI Life Co-Pilot. Ask me about your nutrition, tasks, mood, or anything else!</p>
+                <h3 className="text-xl font-semibold mb-2 text-gray-700 dark:text-gray-300">Welcome to Aurafy!</h3>
+                <p className="text-gray-600 dark:text-gray-400">Your AI Life Co-Pilot is ready to help.</p>
+                <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">Ask me about nutrition, tasks, mood, or anything else!</p>
               </div>
             )}
             
             {messages.map((message) => (
               <div
                 key={message.id}
-                className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'} mb-3`}
               >
                 <div
-                  className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg shadow ${
+                  className={`max-w-xs lg:max-w-md px-4 py-3 rounded-2xl shadow-sm ${
                     message.sender === 'user'
-                      ? 'bg-purple-600 text-white'
-                      : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white'
+                      ? 'bg-blue-500 text-white rounded-br-sm'
+                      : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-bl-sm border'
                   }`}
                 >
-                  <p className="text-sm">{message.text}</p>
-                  <p className={`text-xs mt-1 ${
+                  <p className="text-sm leading-relaxed">{message.text}</p>
+                  <p className={`text-xs mt-2 ${
                     message.sender === 'user' 
-                      ? 'text-purple-200' 
+                      ? 'text-blue-100' 
                       : 'text-gray-500 dark:text-gray-400'
                   }`}>
                     {formatTime(message.timestamp)}
@@ -260,12 +269,15 @@ export const ChatbotPage: React.FC<ChatbotPageProps> = ({ onNavigateBack }) => {
             ))}
             
             {isLoading && (
-              <div className="flex justify-start">
-                <div className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white max-w-xs lg:max-w-md px-4 py-2 rounded-lg shadow">
-                  <div className="flex space-x-1">
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+              <div className="flex justify-start mb-3">
+                <div className="bg-white dark:bg-gray-700 text-gray-900 dark:text-white max-w-xs lg:max-w-md px-4 py-3 rounded-2xl rounded-bl-sm shadow-sm border">
+                  <div className="flex items-center space-x-2">
+                    <div className="flex space-x-1">
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                    </div>
+                    <span className="text-xs text-gray-500">Aurafy is typing...</span>
                   </div>
                 </div>
               </div>
@@ -275,51 +287,57 @@ export const ChatbotPage: React.FC<ChatbotPageProps> = ({ onNavigateBack }) => {
           </div>
 
           {/* Input Area */}
-          <div className="p-4 bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm border-t border-gray-200 dark:border-gray-700">
-            <div className="flex space-x-2 items-end">
+          <div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+            {isListening && (
+              <div className="mb-2 p-2 bg-red-50 dark:bg-red-900/20 rounded-lg text-center">
+                <p className="text-sm text-red-600 dark:text-red-400 flex items-center justify-center space-x-2">
+                  <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                  <span>Listening... Speak now</span>
+                </p>
+              </div>
+            )}
+            
+            <div className="flex items-end space-x-2">
               <div className="flex-1 relative">
                 <Textarea
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  placeholder="Type your message..."
+                  placeholder="Type a message..."
                   disabled={isLoading}
                   rows={1}
-                  className="resize-none pr-32"
+                  className="resize-none pr-20 rounded-3xl border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
-                <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex space-x-1">
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center space-x-1">
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={handleVoiceInput}
-                    className={`${isListening ? 'text-red-500' : 'text-gray-400'}`}
+                    className={`${isListening ? 'text-red-500' : 'text-gray-400 hover:text-gray-600'} p-1`}
                     disabled={isLoading}
                   >
-                    {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                    {isListening ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
                   </Button>
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => setShowToolkit(true)}
                     disabled={isLoading}
-                    className="text-gray-400 hover:text-gray-600"
+                    className="text-gray-400 hover:text-gray-600 p-1"
                   >
-                    <Wrench className="h-4 w-4" />
-                    <span className="text-xs ml-1">🧰</span>
+                    <Wrench className="h-5 w-5" />
                   </Button>
                 </div>
               </div>
               <Button
                 onClick={handleSendMessage}
                 disabled={!input.trim() || isLoading}
-                className="px-4 py-2"
+                className="rounded-full w-12 h-12 bg-blue-500 hover:bg-blue-600 text-white"
+                size="sm"
               >
-                <Send className="h-4 w-4" />
+                <Send className="h-5 w-5" />
               </Button>
             </div>
-            {isListening && (
-              <p className="text-sm text-red-500 mt-2">Listening... Speak now</p>
-            )}
           </div>
         </div>
 
