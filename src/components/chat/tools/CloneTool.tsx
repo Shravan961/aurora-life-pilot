@@ -5,26 +5,19 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Trash2, Plus, MessageCircle } from 'lucide-react';
+import { Trash2, Plus, MessageCircle, Loader2 } from 'lucide-react';
+import { supabaseChatService, SupabaseClone } from '@/services/supabaseChat';
 import { toast } from "sonner";
-
-interface Clone {
-  id: string;
-  name: string;
-  personality: string;
-  role: string;
-  style: string;
-  systemPrompt: string;
-}
 
 interface CloneToolProps {
   onSendToChat: (message: string) => void;
 }
 
 export const CloneTool: React.FC<CloneToolProps> = ({ onSendToChat }) => {
-  const [clones, setClones] = useState<Clone[]>([]);
-  const [activeClone, setActiveClone] = useState<string | null>(null);
+  const [clones, setClones] = useState<SupabaseClone[]>([]);
+  const [activeClone, setActiveClone] = useState<SupabaseClone | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [formData, setFormData] = useState({
     name: '',
     personality: '',
@@ -33,68 +26,144 @@ export const CloneTool: React.FC<CloneToolProps> = ({ onSendToChat }) => {
   });
 
   useEffect(() => {
-    const stored = localStorage.getItem('aiClones');
-    if (stored) {
-      setClones(JSON.parse(stored));
-    }
-    
-    const activeStored = localStorage.getItem('activeClone');
-    if (activeStored) {
-      const active = JSON.parse(activeStored);
-      setActiveClone(active.id);
-    }
+    loadClones();
   }, []);
 
-  const saveClones = (updatedClones: Clone[]) => {
-    setClones(updatedClones);
-    localStorage.setItem('aiClones', JSON.stringify(updatedClones));
+  const loadClones = async () => {
+    try {
+      const clonesData = await supabaseChatService.getClones();
+      setClones(clonesData);
+      
+      const active = clonesData.find(clone => clone.is_active);
+      if (active) {
+        setActiveClone(active);
+        localStorage.setItem('activeClone', JSON.stringify(active));
+      }
+    } catch (error) {
+      console.error('Error loading clones:', error);
+      // Fallback to localStorage
+      const stored = localStorage.getItem('aiClones');
+      if (stored) {
+        setClones(JSON.parse(stored));
+      }
+      
+      const activeStored = localStorage.getItem('activeClone');
+      if (activeStored) {
+        setActiveClone(JSON.parse(activeStored));
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const createClone = () => {
+  const createClone = async () => {
     if (!formData.name || !formData.role) {
       toast.error('Name and role are required');
       return;
     }
 
-    const newClone: Clone = {
-      id: Date.now().toString(),
+    const newClone = {
       name: formData.name,
-      personality: formData.personality,
       role: formData.role,
+      personality: formData.personality,
       style: formData.style,
-      systemPrompt: `You are ${formData.name}, a ${formData.role}. ${formData.personality ? `Your personality: ${formData.personality}.` : ''} Your communication style is ${formData.style}. Always stay in character and be helpful in your role.`
+      system_prompt: `You are ${formData.name}, a ${formData.role}. ${formData.personality ? `Your personality: ${formData.personality}.` : ''} Your communication style is ${formData.style}. Always stay in character and be helpful in your role. Remember our conversation history and maintain consistency.`,
+      conversation_log: [],
+      memory: {},
+      is_active: false
     };
 
-    const updatedClones = [...clones, newClone];
-    saveClones(updatedClones);
-    setFormData({ name: '', personality: '', role: '', style: 'friendly' });
-    setShowCreateForm(false);
-    toast.success(`${newClone.name} clone created!`);
+    try {
+      await supabaseChatService.saveClone(newClone);
+      await loadClones();
+      setFormData({ name: '', personality: '', role: '', style: 'friendly' });
+      setShowCreateForm(false);
+      toast.success(`${newClone.name} clone created!`);
+    } catch (error) {
+      console.error('Error creating clone:', error);
+      toast.error('Failed to create clone. Using local storage.');
+      
+      // Fallback to localStorage
+      const localClone = {
+        ...newClone,
+        id: Date.now().toString(),
+        user_id: 'local',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      
+      const localClones = [...clones, localClone];
+      setClones(localClones);
+      localStorage.setItem('aiClones', JSON.stringify(localClones));
+    }
   };
 
-  const deleteClone = (id: string) => {
-    const updatedClones = clones.filter(clone => clone.id !== id);
-    saveClones(updatedClones);
-    if (activeClone === id) {
+  const deleteClone = async (clone: SupabaseClone) => {
+    try {
+      await supabaseChatService.deleteClone(clone.id);
+      await loadClones();
+      
+      if (activeClone?.id === clone.id) {
+        setActiveClone(null);
+        localStorage.removeItem('activeClone');
+      }
+      
+      toast.success('Clone deleted');
+    } catch (error) {
+      console.error('Error deleting clone:', error);
+      toast.error('Failed to delete clone');
+    }
+  };
+
+  const activateClone = async (clone: SupabaseClone) => {
+    try {
+      // Deactivate all clones first
+      await supabaseChatService.deactivateAllClones();
+      
+      // Activate the selected clone
+      await supabaseChatService.updateClone(clone.id, { is_active: true });
+      
+      setActiveClone(clone);
+      localStorage.setItem('activeClone', JSON.stringify(clone));
+      
+      onSendToChat(`Hello! I'm now ${clone.name}, your ${clone.role}. How can I help you today?`);
+      toast.success(`Now chatting with ${clone.name}`);
+      
+      await loadClones();
+    } catch (error) {
+      console.error('Error activating clone:', error);
+      // Fallback to localStorage
+      setActiveClone(clone);
+      localStorage.setItem('activeClone', JSON.stringify(clone));
+      onSendToChat(`Hello! I'm now ${clone.name}, your ${clone.role}. How can I help you today?`);
+      toast.success(`Now chatting with ${clone.name}`);
+    }
+  };
+
+  const deactivateClone = async () => {
+    try {
+      await supabaseChatService.deactivateAllClones();
       setActiveClone(null);
       localStorage.removeItem('activeClone');
+      onSendToChat('I\'ve returned to normal mode. How can I help you?');
+      toast.success('Returned to normal mode');
+      await loadClones();
+    } catch (error) {
+      console.error('Error deactivating clone:', error);
+      setActiveClone(null);
+      localStorage.removeItem('activeClone');
+      onSendToChat('I\'ve returned to normal mode. How can I help you?');
+      toast.success('Returned to normal mode');
     }
-    toast.success('Clone deleted');
   };
 
-  const activateClone = (clone: Clone) => {
-    setActiveClone(clone.id);
-    localStorage.setItem('activeClone', JSON.stringify(clone));
-    onSendToChat(`Hello! I'm now ${clone.name}, your ${clone.role}. How can I help you today?`);
-    toast.success(`Now chatting with ${clone.name}`);
-  };
-
-  const deactivateClone = () => {
-    setActiveClone(null);
-    localStorage.removeItem('activeClone');
-    onSendToChat('I\'ve returned to normal mode. How can I help you?');
-    toast.success('Returned to normal mode');
-  };
+  if (isLoading) {
+    return (
+      <div className="p-4 flex justify-center">
+        <Loader2 className="h-6 w-6 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 space-y-4">
@@ -154,7 +223,7 @@ export const CloneTool: React.FC<CloneToolProps> = ({ onSendToChat }) => {
           <CardContent className="p-3">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
-                Currently active: {clones.find(c => c.id === activeClone)?.name}
+                Currently active: {activeClone.name}
               </span>
               <Button size="sm" variant="outline" onClick={deactivateClone}>
                 Deactivate
@@ -166,7 +235,7 @@ export const CloneTool: React.FC<CloneToolProps> = ({ onSendToChat }) => {
 
       <div className="space-y-2">
         {clones.map((clone) => (
-          <Card key={clone.id} className={`${activeClone === clone.id ? 'ring-2 ring-blue-500' : ''}`}>
+          <Card key={clone.id} className={`${activeClone?.id === clone.id ? 'ring-2 ring-blue-500' : ''}`}>
             <CardContent className="p-3">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
@@ -178,16 +247,16 @@ export const CloneTool: React.FC<CloneToolProps> = ({ onSendToChat }) => {
                   <Button
                     size="sm"
                     onClick={() => activateClone(clone)}
-                    disabled={activeClone === clone.id}
-                    className={activeClone === clone.id ? 'bg-blue-500' : ''}
+                    disabled={activeClone?.id === clone.id}
+                    className={activeClone?.id === clone.id ? 'bg-blue-500' : ''}
                   >
                     <MessageCircle className="h-4 w-4 mr-1" />
-                    {activeClone === clone.id ? 'Active' : 'Activate'}
+                    {activeClone?.id === clone.id ? 'Active' : 'Activate'}
                   </Button>
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => deleteClone(clone.id)}
+                    onClick={() => deleteClone(clone)}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>

@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import { generateId, getTimestamp, formatTime } from '@/utils/helpers';
 import { ChatMessage } from '@/types';
 import { ToolkitModal } from '@/components/chat/ToolkitModal';
 import { ToolkitSidebar } from '@/components/chat/ToolkitSidebar';
+import { supabaseChatService, SupabaseClone } from '@/services/supabaseChat';
 import { chatStorage } from '@/services/chatDatabase';
 import { toast } from "sonner";
 
@@ -27,7 +29,8 @@ export const ChatbotPage: React.FC<ChatbotPageProps> = ({ onNavigateBack }) => {
   const [isListening, setIsListening] = useState(false);
   const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [activeClone, setActiveClone] = useState<any>(null);
+  const [activeClone, setActiveClone] = useState<SupabaseClone | null>(null);
+  const [useSupabase, setUseSupabase] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   const { getTodaysCalories, getTodaysEntries } = useLocalNutrition();
@@ -37,6 +40,7 @@ export const ChatbotPage: React.FC<ChatbotPageProps> = ({ onNavigateBack }) => {
 
   useEffect(() => {
     loadMessages();
+    loadActiveClone();
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
 
@@ -70,26 +74,53 @@ export const ChatbotPage: React.FC<ChatbotPageProps> = ({ onNavigateBack }) => {
       
       setRecognition(recognition);
     }
-
-    // Load active clone
-    const storedClone = localStorage.getItem('activeClone');
-    if (storedClone) {
-      setActiveClone(JSON.parse(storedClone));
-    }
   }, []);
 
   const loadMessages = async () => {
     try {
-      const storedMessages = await chatStorage.getMessages();
-      setMessages(storedMessages);
+      // Try Supabase first
+      const supabaseMessages = await supabaseChatService.getMessages();
+      if (supabaseMessages.length > 0) {
+        setMessages(supabaseMessages);
+        setUseSupabase(true);
+        return;
+      }
+    } catch (error) {
+      console.log('Supabase not available, using local storage');
+    }
+    
+    // Fallback to local storage
+    try {
+      const localMessages = await chatStorage.getMessages();
+      setMessages(localMessages);
     } catch (error) {
       console.error('Error loading messages:', error);
     }
   };
 
+  const loadActiveClone = async () => {
+    try {
+      const clones = await supabaseChatService.getClones();
+      const active = clones.find(clone => clone.is_active);
+      if (active) {
+        setActiveClone(active);
+      }
+    } catch (error) {
+      // Fallback to localStorage
+      const storedClone = localStorage.getItem('activeClone');
+      if (storedClone) {
+        setActiveClone(JSON.parse(storedClone));
+      }
+    }
+  };
+
   const addMessage = async (message: ChatMessage) => {
     try {
-      await chatStorage.addMessage(message);
+      if (useSupabase) {
+        await supabaseChatService.saveMessage(message, activeClone?.id);
+      } else {
+        await chatStorage.addMessage(message);
+      }
       setMessages(prev => [...prev, message]);
     } catch (error) {
       console.error('Error saving message:', error);
@@ -99,7 +130,13 @@ export const ChatbotPage: React.FC<ChatbotPageProps> = ({ onNavigateBack }) => {
 
   const clearChat = async () => {
     try {
-      await chatStorage.clearMessages();
+      if (useSupabase) {
+        await supabaseChatService.clearMessages();
+        await supabaseChatService.deactivateAllClones();
+      } else {
+        await chatStorage.clearMessages();
+      }
+      
       setMessages([]);
       setActiveClone(null);
       localStorage.removeItem('activeClone');
@@ -118,10 +155,14 @@ export const ChatbotPage: React.FC<ChatbotPageProps> = ({ onNavigateBack }) => {
     if (activeClone && (
       userMessage.toLowerCase().includes('stop') ||
       userMessage.toLowerCase().includes('okay you can stop') ||
-      userMessage.toLowerCase().includes('revert to normal')
+      userMessage.toLowerCase().includes('revert to normal') ||
+      userMessage.toLowerCase().includes('be normal again')
     )) {
       setActiveClone(null);
       localStorage.removeItem('activeClone');
+      if (useSupabase) {
+        supabaseChatService.deactivateAllClones().catch(console.error);
+      }
       return { deactivateClone: true };
     }
 
@@ -216,7 +257,7 @@ export const ChatbotPage: React.FC<ChatbotPageProps> = ({ onNavigateBack }) => {
       // Use clone prompt if active
       let prompt = messageText;
       if (activeClone) {
-        prompt = `${activeClone.systemPrompt}\n\nUser: ${messageText}`;
+        prompt = `${activeClone.system_prompt}\n\nUser: ${messageText}`;
       }
 
       const response = await chatService.sendMessage(prompt, context);
@@ -306,7 +347,9 @@ export const ChatbotPage: React.FC<ChatbotPageProps> = ({ onNavigateBack }) => {
             <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
               {activeClone ? activeClone.name : 'Aurafy'}
             </h1>
-            <p className="text-xs text-green-500">Online</p>
+            <p className="text-xs text-green-500">
+              Online {useSupabase ? '• Synced' : '• Local'}
+            </p>
           </div>
         </div>
         
@@ -347,7 +390,7 @@ export const ChatbotPage: React.FC<ChatbotPageProps> = ({ onNavigateBack }) => {
                       : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-bl-sm border'
                   }`}
                 >
-                  <p className="text-sm leading-relaxed">{message.text}</p>
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.text}</p>
                   <p className={`text-xs mt-2 ${
                     message.sender === 'user' 
                       ? 'text-blue-100' 

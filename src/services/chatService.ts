@@ -1,5 +1,6 @@
 
 import { GROQ_API_KEY, COHERE_API_KEY } from '@/utils/constants';
+import { webSearchService } from './webSearchService';
 
 interface ChatContext {
   nutritionData?: any;
@@ -49,7 +50,9 @@ class ChatService {
   }
 
   private buildSystemPrompt(context?: ChatContext): string {
-    let prompt = `You are Aurafy, a helpful AI life co-pilot assistant. Be friendly, supportive, and provide practical advice. Keep responses concise but helpful. You can analyze patterns across nutrition, mood, tasks, and symptoms to provide insights.`;
+    let prompt = `You are Aurafy, a helpful AI life co-pilot assistant. Be friendly, supportive, and provide practical advice. Keep responses concise but helpful. You can analyze patterns across nutrition, mood, tasks, and symptoms to provide insights.
+
+If a user asks about current events, weather, or information that requires real-time data, suggest they use the AI Search tool for the most up-to-date information.`;
     
     if (context?.nutritionData) {
       prompt += `\n\nNutrition Context: The user has logged the following nutrition data: ${JSON.stringify(context.nutritionData)}`;
@@ -82,6 +85,14 @@ class ChatService {
   public detectIntent(message: string): string {
     const lowerMessage = message.toLowerCase();
     
+    // Check if user is asking for web search
+    if (lowerMessage.includes('search for') || lowerMessage.includes('look up') || 
+        lowerMessage.includes('find information about') || lowerMessage.includes('what is') ||
+        lowerMessage.includes('weather in') || lowerMessage.includes('current') ||
+        lowerMessage.includes('latest') || lowerMessage.includes('news about')) {
+      return 'web_search';
+    }
+    
     // Cross-section analysis patterns
     if (lowerMessage.includes('pattern') || lowerMessage.includes('relationship') || lowerMessage.includes('connection') || 
         (lowerMessage.includes('mood') && (lowerMessage.includes('food') || lowerMessage.includes('nutrition'))) ||
@@ -111,6 +122,13 @@ class ChatService {
 
   async sendMessage(message: string, context?: ChatContext): Promise<string> {
     try {
+      const intent = this.detectIntent(message);
+      
+      // Handle web search requests
+      if (intent === 'web_search') {
+        return await webSearchService.search(message);
+      }
+      
       return await this.callGroqAPI(message, context);
     } catch (error) {
       console.error('Chat service error:', error);

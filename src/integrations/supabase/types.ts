@@ -148,6 +148,90 @@ export type Database = {
         }
         Relationships: []
       }
+      chat_messages: {
+        Row: {
+          clone_id: string | null
+          content: string
+          created_at: string
+          id: string
+          message_type: string
+          sender: string
+          thread_id: string
+          timestamp: number
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          clone_id?: string | null
+          content: string
+          created_at?: string
+          id?: string
+          message_type?: string
+          sender: string
+          thread_id?: string
+          timestamp: number
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          clone_id?: string | null
+          content?: string
+          created_at?: string
+          id?: string
+          message_type?: string
+          sender?: string
+          thread_id?: string
+          timestamp?: number
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      clones: {
+        Row: {
+          conversation_log: Json | null
+          created_at: string
+          id: string
+          is_active: boolean | null
+          memory: Json | null
+          name: string
+          personality: string | null
+          role: string
+          style: string
+          system_prompt: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          conversation_log?: Json | null
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          memory?: Json | null
+          name: string
+          personality?: string | null
+          role: string
+          style?: string
+          system_prompt: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          conversation_log?: Json | null
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          memory?: Json | null
+          name?: string
+          personality?: string | null
+          role?: string
+          style?: string
+          system_prompt?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       conversations: {
         Row: {
           bot_id: string
