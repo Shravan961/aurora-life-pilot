@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -90,13 +89,7 @@ export const ChatbotPage: React.FC<ChatbotPageProps> = ({ onNavigateBack }) => {
 
   const addMessage = async (message: ChatMessage) => {
     try {
-      await chatStorage.addMessage({
-        timestamp: message.timestamp,
-        sender: message.sender,
-        content: message.text,
-        type: 'message',
-        threadId: 'default'
-      });
+      await chatStorage.addMessage(message);
       setMessages(prev => [...prev, message]);
     } catch (error) {
       console.error('Error saving message:', error);
@@ -256,7 +249,6 @@ export const ChatbotPage: React.FC<ChatbotPageProps> = ({ onNavigateBack }) => {
       return;
     }
 
-    // Request permission first
     try {
       await navigator.mediaDevices.getUserMedia({ audio: true });
       

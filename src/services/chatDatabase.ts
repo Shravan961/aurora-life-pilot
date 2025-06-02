@@ -40,10 +40,12 @@ export const chatStorage = {
     const storedMessages = await chatDB.messages
       .where('threadId')
       .equals(threadId)
-      .orderBy('timestamp')
       .toArray();
     
-    return storedMessages.map(msg => ({
+    // Sort by timestamp
+    const sortedMessages = storedMessages.sort((a, b) => a.timestamp - b.timestamp);
+    
+    return sortedMessages.map(msg => ({
       id: msg.id?.toString() || Date.now().toString(),
       sender: msg.sender as 'user' | 'aurora',
       text: msg.content,
