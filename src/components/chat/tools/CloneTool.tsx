@@ -37,6 +37,12 @@ export const CloneTool: React.FC<CloneToolProps> = ({ onSendToChat }) => {
     if (stored) {
       setClones(JSON.parse(stored));
     }
+    
+    const activeStored = localStorage.getItem('activeClone');
+    if (activeStored) {
+      const active = JSON.parse(activeStored);
+      setActiveClone(active.id);
+    }
   }, []);
 
   const saveClones = (updatedClones: Clone[]) => {
@@ -71,6 +77,7 @@ export const CloneTool: React.FC<CloneToolProps> = ({ onSendToChat }) => {
     saveClones(updatedClones);
     if (activeClone === id) {
       setActiveClone(null);
+      localStorage.removeItem('activeClone');
     }
     toast.success('Clone deleted');
   };
@@ -78,8 +85,15 @@ export const CloneTool: React.FC<CloneToolProps> = ({ onSendToChat }) => {
   const activateClone = (clone: Clone) => {
     setActiveClone(clone.id);
     localStorage.setItem('activeClone', JSON.stringify(clone));
-    onSendToChat(`I want to chat with ${clone.name}, my ${clone.role}. ${clone.systemPrompt}`);
+    onSendToChat(`Hello! I'm now ${clone.name}, your ${clone.role}. How can I help you today?`);
     toast.success(`Now chatting with ${clone.name}`);
+  };
+
+  const deactivateClone = () => {
+    setActiveClone(null);
+    localStorage.removeItem('activeClone');
+    onSendToChat('I\'ve returned to normal mode. How can I help you?');
+    toast.success('Returned to normal mode');
   };
 
   return (
@@ -135,6 +149,21 @@ export const CloneTool: React.FC<CloneToolProps> = ({ onSendToChat }) => {
         </Card>
       )}
 
+      {activeClone && (
+        <Card className="border-blue-500 bg-blue-50 dark:bg-blue-900/20">
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                Currently active: {clones.find(c => c.id === activeClone)?.name}
+              </span>
+              <Button size="sm" variant="outline" onClick={deactivateClone}>
+                Deactivate
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="space-y-2">
         {clones.map((clone) => (
           <Card key={clone.id} className={`${activeClone === clone.id ? 'ring-2 ring-blue-500' : ''}`}>
@@ -149,10 +178,11 @@ export const CloneTool: React.FC<CloneToolProps> = ({ onSendToChat }) => {
                   <Button
                     size="sm"
                     onClick={() => activateClone(clone)}
+                    disabled={activeClone === clone.id}
                     className={activeClone === clone.id ? 'bg-blue-500' : ''}
                   >
                     <MessageCircle className="h-4 w-4 mr-1" />
-                    {activeClone === clone.id ? 'Active' : 'Chat'}
+                    {activeClone === clone.id ? 'Active' : 'Activate'}
                   </Button>
                   <Button
                     size="sm"
