@@ -264,7 +264,7 @@ export const ChatbotPage: React.FC<ChatbotPageProps> = ({ onNavigateBack }) => {
       
       const auroraMessage: ChatMessage = {
         id: generateId(),
-        sender: activeClone ? activeClone.name : 'aurora',
+        sender: 'aurora',
         text: response,
         timestamp: getTimestamp(),
       };
