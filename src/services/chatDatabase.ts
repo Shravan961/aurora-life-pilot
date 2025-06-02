@@ -1,17 +1,18 @@
 
 import Dexie, { Table } from 'dexie';
+import { ChatMessage } from '@/types';
 
-export interface ChatMessage {
+export interface StoredChatMessage {
   id?: number;
   timestamp: number;
-  sender: 'user' | 'aurora' | string; // string for clone names
+  sender: string;
   content: string;
   type: 'message' | 'tool' | 'clone';
   threadId?: string;
 }
 
 export class ChatDatabase extends Dexie {
-  messages!: Table<ChatMessage>;
+  messages!: Table<StoredChatMessage>;
 
   constructor() {
     super('AurafyChatDB');
@@ -24,16 +25,31 @@ export class ChatDatabase extends Dexie {
 export const chatDB = new ChatDatabase();
 
 export const chatStorage = {
-  async addMessage(message: Omit<ChatMessage, 'id'>): Promise<number> {
-    return await chatDB.messages.add(message);
+  async addMessage(message: ChatMessage): Promise<number> {
+    const storedMessage: Omit<StoredChatMessage, 'id'> = {
+      timestamp: message.timestamp,
+      sender: message.sender,
+      content: message.text,
+      type: 'message',
+      threadId: message.threadId || 'default'
+    };
+    return await chatDB.messages.add(storedMessage);
   },
 
   async getMessages(threadId: string = 'default'): Promise<ChatMessage[]> {
-    return await chatDB.messages
+    const storedMessages = await chatDB.messages
       .where('threadId')
       .equals(threadId)
       .orderBy('timestamp')
       .toArray();
+    
+    return storedMessages.map(msg => ({
+      id: msg.id?.toString() || Date.now().toString(),
+      sender: msg.sender as 'user' | 'aurora',
+      text: msg.content,
+      timestamp: msg.timestamp,
+      threadId: msg.threadId
+    }));
   },
 
   async clearMessages(): Promise<void> {
@@ -41,8 +57,16 @@ export const chatStorage = {
   },
 
   async searchMessages(query: string): Promise<ChatMessage[]> {
-    return await chatDB.messages
+    const storedMessages = await chatDB.messages
       .filter(msg => msg.content.toLowerCase().includes(query.toLowerCase()))
       .toArray();
+    
+    return storedMessages.map(msg => ({
+      id: msg.id?.toString() || Date.now().toString(),
+      sender: msg.sender as 'user' | 'aurora',
+      text: msg.content,
+      timestamp: msg.timestamp,
+      threadId: msg.threadId
+    }));
   }
 };
