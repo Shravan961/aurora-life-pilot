@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Youtube, Loader2, RefreshCw } from 'lucide-react';
 import { toast } from "sonner";
+import { YoutubeTranscript } from 'youtube-transcript';
 
 interface YouTubeSummaryToolProps {
   onSendToChat: (message: string) => void;
@@ -43,7 +44,17 @@ export const YouTubeSummaryTool: React.FC<YouTubeSummaryToolProps> = ({ onSendTo
 
   const fetchVideoTranscript = async (videoId: string): Promise<string | null> => {
     try {
-      // Method 1: Try YouTube transcript API via CORS proxy
+      // Method 1: Try using youtube-transcript library
+      const transcript = await YoutubeTranscript.fetchTranscript(videoId);
+      if (transcript && transcript.length > 0) {
+        return transcript.map(item => item.text).join(' ');
+      }
+    } catch (error) {
+      console.log('Youtube-transcript method failed:', error);
+    }
+
+    try {
+      // Method 2: Try YouTube transcript API via CORS proxy
       const transcriptResponse = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(`https://www.youtube.com/api/timedtext?lang=en&v=${videoId}`)}`);
       if (transcriptResponse.ok) {
         const data = await transcriptResponse.json();
@@ -58,22 +69,6 @@ export const YouTubeSummaryTool: React.FC<YouTubeSummaryToolProps> = ({ onSendTo
           }
           if (transcript.trim()) return transcript.trim();
         }
-      }
-    } catch (error) {
-      console.log('Transcript method 1 failed:', error);
-    }
-
-    try {
-      // Method 2: Try alternative transcript extraction
-      const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(`https://www.youtube.com/watch?v=${videoId}`)}`);
-      const data = await response.json();
-      const html = data.contents;
-      
-      // Look for captions in the HTML
-      const captionMatch = html.match(/"captions":\s*({[^}]*"playerCaptionsTracklistRenderer"[^}]*})/);
-      if (captionMatch) {
-        // Found caption data - this is a simplified extraction
-        return "Captions available but require additional parsing";
       }
     } catch (error) {
       console.log('Transcript method 2 failed:', error);
@@ -111,31 +106,30 @@ export const YouTubeSummaryTool: React.FC<YouTubeSummaryToolProps> = ({ onSendTo
   };
 
   const generateSummaryWithGroq = async (videoData: VideoData): Promise<string> => {
-    const groqApiKey = import.meta.env.VITE_GROQ_API_KEY;
+    const groqApiKey = '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';
     
-    if (!groqApiKey) {
-      throw new Error('Groq API key not configured');
-    }
-
     const contentToSummarize = videoData.transcript || `Title: ${videoData.title}\n\nDescription: ${videoData.description}`;
     
     const prompt = `You are an expert content summarizer. Please analyze this YouTube video content and provide a comprehensive summary with the following structure:
 
-**Video Title:** ${videoData.title}
+**🎬 Video Title:** ${videoData.title}
 
-**Key Takeaways:**
+**🔑 Key Takeaways:**
 - [3-5 main points from the video]
 
-**Highlights:**
+**✨ Highlights:**
 - [Important moments or insights]
 
-**Summary:**
+**📋 Summary:**
 [2-3 paragraph overview of the content]
+
+**💡 Actionable Insights:**
+- [Practical tips or advice from the video]
 
 Content to analyze:
 ${contentToSummarize}
 
-Make the summary engaging, informative, and easy to read. Focus on actionable insights and key information.`;
+Make the summary engaging, informative, and easy to read. Focus on actionable insights and key information that viewers can apply.`;
 
     try {
       const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -149,7 +143,7 @@ Make the summary engaging, informative, and easy to read. Focus on actionable in
           messages: [
             {
               role: 'system',
-              content: 'You are an expert content summarizer specializing in video content analysis.'
+              content: 'You are an expert content summarizer specializing in video content analysis. Create structured, engaging summaries with clear sections and actionable insights.'
             },
             {
               role: 'user',
@@ -157,7 +151,7 @@ Make the summary engaging, informative, and easy to read. Focus on actionable in
             }
           ],
           temperature: 0.3,
-          max_tokens: 1000
+          max_tokens: 1500
         }),
       });
 
@@ -170,7 +164,7 @@ Make the summary engaging, informative, and easy to read. Focus on actionable in
     } catch (error) {
       console.error('Groq API error:', error);
       // Fallback to basic summary
-      return `**Video Summary:** ${videoData.title}\n\n**Content Overview:**\n${videoData.description}\n\n**Status:** ${videoData.transcript ? 'Full transcript analyzed' : 'Summary based on title and description'}`;
+      return `**🎬 Video Summary:** ${videoData.title}\n\n**📋 Content Overview:**\n${videoData.description}\n\n**📊 Analysis Status:** ${videoData.transcript ? '✅ Full transcript analyzed' : '⚠️ Summary based on title and description only'}`;
     }
   };
 
@@ -188,15 +182,17 @@ Make the summary engaging, informative, and easy to read. Focus on actionable in
 
     setIsProcessing(true);
     try {
+      toast.info('Fetching video data...');
       const videoData = await fetchVideoMetadata(videoId);
       setLastVideoData(videoData);
       
+      toast.info('Generating AI summary...');
       const summary = await generateSummaryWithGroq(videoData);
       
-      const fullMessage = `📺 **YouTube Video Summary**\n\n${summary}\n\n🔗 [Watch Video](${url})`;
+      const fullMessage = `📺 **YouTube Video Analysis**\n\n${summary}\n\n🔗 [Watch Video](${url})`;
       onSendToChat(fullMessage);
       
-      toast.success('Video summarized successfully!');
+      toast.success('Video summarized successfully! ✨');
       setUrl('');
     } catch (error) {
       console.error('YouTube summary error:', error);
@@ -214,10 +210,11 @@ Make the summary engaging, informative, and easy to read. Focus on actionable in
 
     setIsProcessing(true);
     try {
+      toast.info('Regenerating summary...');
       const newSummary = await generateSummaryWithGroq(lastVideoData);
-      const fullMessage = `📺 **YouTube Video Summary (Regenerated)**\n\n${newSummary}\n\n🔗 [Watch Video](${url})`;
+      const fullMessage = `📺 **YouTube Video Summary (Regenerated)**\n\n${newSummary}\n\n🔗 [Original Video](${url})`;
       onSendToChat(fullMessage);
-      toast.success('Summary regenerated successfully!');
+      toast.success('Summary regenerated successfully! 🔄');
     } catch (error) {
       console.error('Regeneration error:', error);
       toast.error('Failed to regenerate summary. Please try again.');
@@ -232,7 +229,7 @@ Make the summary engaging, informative, and easy to read. Focus on actionable in
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Youtube className="h-5 w-5 text-red-500" />
-            <span>YouTube Summary</span>
+            <span>YouTube Summary Tool</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -252,10 +249,10 @@ Make the summary engaging, informative, and easy to read. Focus on actionable in
                 {isProcessing ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Analyzing...
+                    Analyzing Video...
                   </>
                 ) : (
-                  'Summarize Video'
+                  'Generate AI Summary'
                 )}
               </Button>
               
@@ -274,9 +271,10 @@ Make the summary engaging, informative, and easy to read. Focus on actionable in
           
           <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
             <p>✅ Supports all YouTube URL formats (regular, shorts, timestamped)</p>
-            <p>✅ Extracts transcripts when available</p>
-            <p>✅ Falls back to title + description analysis</p>
-            <p>✅ Powered by Groq AI for intelligent summaries</p>
+            <p>✅ Extracts transcripts when available using multiple methods</p>
+            <p>✅ Intelligent fallback to title + description analysis</p>
+            <p>✅ Powered by Groq AI for comprehensive summaries</p>
+            <p>🆕 Enhanced with structured takeaways and actionable insights</p>
           </div>
         </CardContent>
       </Card>

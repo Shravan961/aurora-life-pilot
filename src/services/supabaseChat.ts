@@ -143,6 +143,38 @@ class SupabaseChatService {
     }
   }
 
+  async saveClone(clone: Omit<SupabaseClone, 'id' | 'created_at' | 'updated_at'>): Promise<SupabaseClone | null> {
+    return this.createClone(clone);
+  }
+
+  async updateClone(cloneId: string, updates: Partial<SupabaseClone>): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from('clones')
+        .update(updates)
+        .eq('id', cloneId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error updating clone:', error);
+      throw error;
+    }
+  }
+
+  async deleteClone(cloneId: string): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from('clones')
+        .delete()
+        .eq('id', cloneId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error deleting clone:', error);
+      throw error;
+    }
+  }
+
   async activateClone(cloneId: string): Promise<void> {
     try {
       // First deactivate all clones
