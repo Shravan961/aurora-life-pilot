@@ -18,12 +18,19 @@ export interface SupabaseClone {
 }
 
 class SupabaseChatService {
-  async getMessages(): Promise<ChatMessage[]> {
+  async getMessages(userId?: string): Promise<ChatMessage[]> {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('chat_messages')
         .select('*')
         .order('timestamp', { ascending: true });
+
+      // Filter by user if authenticated
+      if (userId) {
+        query = query.eq('user_id', userId);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
 
@@ -39,7 +46,7 @@ class SupabaseChatService {
     }
   }
 
-  async saveMessage(message: ChatMessage, cloneId?: string): Promise<void> {
+  async saveMessage(message: ChatMessage, cloneId?: string, userId?: string): Promise<void> {
     try {
       const { error } = await supabase
         .from('chat_messages')
@@ -50,7 +57,8 @@ class SupabaseChatService {
           timestamp: message.timestamp,
           clone_id: cloneId || null,
           message_type: 'message',
-          thread_id: 'default'
+          thread_id: 'default',
+          user_id: userId || null
         });
 
       if (error) throw error;
@@ -60,12 +68,17 @@ class SupabaseChatService {
     }
   }
 
-  async clearMessages(): Promise<void> {
+  async clearMessages(userId?: string): Promise<void> {
     try {
-      const { error } = await supabase
-        .from('chat_messages')
-        .delete()
-        .neq('id', ''); // Delete all messages
+      let query = supabase.from('chat_messages').delete();
+
+      if (userId) {
+        query = query.eq('user_id', userId);
+      } else {
+        query = query.neq('id', ''); // Delete all if no user specified
+      }
+
+      const { error } = await query;
 
       if (error) throw error;
     } catch (error) {

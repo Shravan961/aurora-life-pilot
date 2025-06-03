@@ -1,7 +1,9 @@
 
 import React from 'react';
 import { Button } from "@/components/ui/button";
-import { Moon, Sun } from 'lucide-react';
+import { Moon, Sun, LogOut } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
 
 interface HeaderProps {
   darkMode: boolean;
@@ -9,6 +11,25 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ darkMode, setDarkMode }) => {
+  const { signOut } = useAuth();
+  const { toast } = useToast();
+
+  const handleSignOut = async () => {
+    const { error } = await signOut();
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to sign out",
+        variant: "destructive"
+      });
+    } else {
+      toast({
+        title: "Success",
+        description: "Signed out successfully"
+      });
+    }
+  };
+
   return (
     <header className="flex items-center justify-between py-4">
       <div className="flex items-center space-x-2">
@@ -20,18 +41,29 @@ export const Header: React.FC<HeaderProps> = ({ darkMode, setDarkMode }) => {
         </h1>
       </div>
       
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => setDarkMode(!darkMode)}
-        className="rounded-full"
-      >
-        {darkMode ? (
-          <Sun className="h-5 w-5" />
-        ) : (
-          <Moon className="h-5 w-5" />
-        )}
-      </Button>
+      <div className="flex items-center gap-2">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setDarkMode(!darkMode)}
+          className="rounded-full"
+        >
+          {darkMode ? (
+            <Sun className="h-5 w-5" />
+          ) : (
+            <Moon className="h-5 w-5" />
+          )}
+        </Button>
+        
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleSignOut}
+          className="rounded-full"
+        >
+          <LogOut className="h-5 w-5" />
+        </Button>
+      </div>
     </header>
   );
 };
