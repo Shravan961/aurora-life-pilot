@@ -1,436 +1,293 @@
 
-import React, { useState, useRef } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { FileText, Upload, Loader2, MessageCircle, X, File, Type, Copy } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import React, { useState } from 'react';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { FileText, Loader2, Upload, MessageSquare, X } from 'lucide-react';
 import { pdfService } from '@/services/pdfService';
+import { memoryService } from '@/services/memoryService';
+import { toast } from "sonner";
 
 interface ChatPDFToolProps {
   onSendToChat: (message: string) => void;
 }
 
-interface ProcessedDocument {
-  id: string;
-  name: string;
-  type: 'pdf' | 'text';
-  totalPages?: number;
-  wordCount?: number;
-  createdAt: Date;
-}
-
-interface ChatMessage {
-  id: string;
-  type: 'user' | 'assistant';
-  content: string;
-  timestamp: Date;
-}
-
 export const ChatPDFTool: React.FC<ChatPDFToolProps> = ({ onSendToChat }) => {
-  const [uploading, setUploading] = useState(false);
-  const [processing, setProcessing] = useState(false);
-  const [currentDoc, setCurrentDoc] = useState<ProcessedDocument | null>(null);
-  const [question, setQuestion] = useState('');
+  const [file, setFile] = useState<File | null>(null);
   const [textInput, setTextInput] = useState('');
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
-  const [loadingAnswer, setLoadingAnswer] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const { toast } = useToast();
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processedDocId, setProcessedDocId] = useState<string | null>(null);
+  const [question, setQuestion] = useState('');
+  const [isAnswering, setIsAnswering] = useState(false);
+  const [conversationHistory, setConversationHistory] = useState<Array<{question: string, answer: string}>>([]);
+  const [conversationThreadId, setConversationThreadId] = useState<string | null>(null);
+  const [showConversation, setShowConversation] = useState(false);
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    if (file.type !== 'application/pdf') {
-      toast({
-        title: "Error",
-        description: "Please upload a valid PDF file",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    if (file.size > 10 * 1024 * 1024) { // 10MB limit
-      toast({
-        title: "Error",
-        description: "File size must be less than 10MB",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setUploading(true);
-    setProcessing(true);
-
-    try {
-      console.log('Processing PDF:', file.name);
-      const processedPDF = await pdfService.processPDF(file);
-      
-      setCurrentDoc({
-        id: processedPDF.id,
-        name: processedPDF.name,
-        type: 'pdf',
-        totalPages: processedPDF.totalPages,
-        createdAt: processedPDF.createdAt
-      });
-
-      setChatHistory([]);
-      
-      toast({
-        title: "Success",
-        description: `PDF "${file.name}" processed successfully! You can now ask questions about it.`
-      });
-
-      onSendToChat(`📄 **PDF Uploaded**: "${file.name}" (${processedPDF.totalPages} pages) is now ready for analysis. Ask me anything about this document!`);
-
-    } catch (error) {
-      console.error('PDF processing error:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to process PDF",
-        variant: "destructive"
-      });
-    } finally {
-      setUploading(false);
-      setProcessing(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = event.target.files?.[0];
+    if (selectedFile && selectedFile.type === 'application/pdf') {
+      setFile(selectedFile);
+      setTextInput('');
+    } else {
+      toast.error('Please select a valid PDF file');
     }
   };
 
   const handleTextProcess = async () => {
     if (!textInput.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter some text to analyze",
-        variant: "destructive"
-      });
+      toast.error('Please enter some text to process');
       return;
     }
 
-    setProcessing(true);
-
+    setIsProcessing(true);
     try {
-      const processedText = await pdfService.processText(textInput.trim());
+      const processedDoc = await pdfService.processText(textInput);
+      setProcessedDocId(processedDoc.id);
       
-      setCurrentDoc({
-        id: processedText.id,
-        name: 'Pasted Text Document',
-        type: 'text',
-        wordCount: textInput.trim().split(/\s+/).length,
-        createdAt: new Date()
-      });
-
-      setChatHistory([]);
-      setTextInput('');
+      // Create conversation thread
+      const threadId = memoryService.createThread('pdf_chat', `Text Document Chat`);
+      setConversationThreadId(threadId);
+      memoryService.activateThread(threadId);
       
-      toast({
-        title: "Success",
-        description: "Text processed successfully! You can now ask questions about it."
-      });
-
-      onSendToChat(`📝 **Text Document**: Processed ${textInput.trim().split(/\s+/).length} words of text. Ready for analysis!`);
-
+      toast.success('Text processed successfully!');
+      setShowConversation(true);
     } catch (error) {
       console.error('Text processing error:', error);
-      toast({
-        title: "Error",
-        description: "Failed to process text",
-        variant: "destructive"
-      });
+      toast.error('Failed to process text');
     } finally {
-      setProcessing(false);
+      setIsProcessing(false);
+    }
+  };
+
+  const handleProcessPDF = async () => {
+    if (!file) {
+      toast.error('Please select a PDF file first');
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const processedDoc = await pdfService.processPDF(file);
+      setProcessedDocId(processedDoc.id);
+      
+      // Create conversation thread
+      const threadId = memoryService.createThread('pdf_chat', `PDF Chat: ${file.name}`);
+      setConversationThreadId(threadId);
+      memoryService.activateThread(threadId);
+      
+      onSendToChat(`📄 **PDF Processed Successfully**: ${file.name}\n\nDocument has been analyzed and chunked for intelligent Q&A. You can now ask questions about the content!`);
+      toast.success('PDF processed successfully!');
+      setShowConversation(true);
+    } catch (error) {
+      console.error('PDF processing error:', error);
+      toast.error('Failed to process PDF. Please ensure it\'s a valid PDF file.');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   const handleAskQuestion = async () => {
-    if (!question.trim() || !currentDoc) {
-      toast({
-        title: "Error",
-        description: currentDoc ? "Please enter a question" : "Please upload a document or paste text first",
-        variant: "destructive"
-      });
-      return;
-    }
+    if (!question.trim() || !processedDocId) return;
 
-    const userMessage: ChatMessage = {
-      id: `msg_${Date.now()}`,
-      type: 'user',
-      content: question.trim(),
-      timestamp: new Date()
-    };
-
-    setChatHistory(prev => [...prev, userMessage]);
-    setLoadingAnswer(true);
-    const currentQuestion = question.trim();
-    setQuestion('');
-
+    setIsAnswering(true);
     try {
-      console.log('Asking question:', currentQuestion);
-      const answer = await pdfService.answerQuestion(currentDoc.id, currentQuestion);
+      const answer = await pdfService.answerQuestion(processedDocId, question);
       
-      const assistantMessage: ChatMessage = {
-        id: `msg_${Date.now()}_response`,
-        type: 'assistant',
-        content: answer,
-        timestamp: new Date()
-      };
-
-      setChatHistory(prev => [...prev, assistantMessage]);
-
-      onSendToChat(`**Q:** ${currentQuestion}\n\n**A:** ${answer}\n\n*Source: ${currentDoc.name}*`);
-
+      const newConversation = { question: question.trim(), answer };
+      setConversationHistory(prev => [...prev, newConversation]);
+      
+      // Save to memory and thread
+      if (conversationThreadId) {
+        memoryService.addToThread(conversationThreadId, {
+          type: 'pdf_chat',
+          title: `Q: ${question.trim()}`,
+          content: `Q: ${question.trim()}\nA: ${answer}`,
+          metadata: { 
+            pdfName: file?.name || 'Text Document',
+            documentId: processedDocId
+          }
+        });
+      }
+      
+      setQuestion('');
     } catch (error) {
       console.error('Question answering error:', error);
-      const errorMessage: ChatMessage = {
-        id: `msg_${Date.now()}_error`,
-        type: 'assistant',
-        content: "I'm sorry, I encountered an error while processing your question. Please try again.",
-        timestamp: new Date()
-      };
-      
-      setChatHistory(prev => [...prev, errorMessage]);
-      
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to answer question",
-        variant: "destructive"
-      });
+      toast.error('Failed to answer question');
     } finally {
-      setLoadingAnswer(false);
+      setIsAnswering(false);
     }
   };
 
-  const handleRemoveDoc = () => {
-    if (currentDoc) {
-      pdfService.removePDF(currentDoc.id);
-      setCurrentDoc(null);
-      setChatHistory([]);
-      toast({
-        title: "Success",
-        description: "Document removed successfully"
-      });
+  const handleCloseConversation = () => {
+    setShowConversation(false);
+    setConversationHistory([]);
+    if (conversationThreadId) {
+      memoryService.deactivateAllThreads();
     }
+    setConversationThreadId(null);
+    setProcessedDocId(null);
+    setFile(null);
+    setTextInput('');
+    onSendToChat(`📄 **PDF Chat Session Ended**\n\nConversation history has been saved to memory. You can reference this chat later!`);
   };
 
-  const quickQuestions = [
-    "Summarize the main points",
-    "What are the key conclusions?",
-    "List the important findings",
-    "What methodology was used?",
-    "What are the limitations mentioned?"
-  ];
+  if (showConversation && processedDocId) {
+    return (
+      <div className="w-80 h-full flex flex-col bg-white border-l">
+        <div className="flex items-center justify-between p-4 border-b bg-blue-50">
+          <div className="flex items-center space-x-2">
+            <FileText className="h-5 w-5 text-blue-500" />
+            <div>
+              <h3 className="font-semibold text-sm">PDF Chat</h3>
+              <p className="text-xs text-gray-600">{file?.name || 'Text Document'}</p>
+            </div>
+          </div>
+          <Button variant="ghost" size="sm" onClick={handleCloseConversation}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          {conversationHistory.length === 0 ? (
+            <div className="text-center text-gray-500 text-sm">
+              <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p>Ask questions about your document!</p>
+            </div>
+          ) : (
+            conversationHistory.map((conv, index) => (
+              <div key={index} className="space-y-2">
+                <div className="bg-blue-100 p-2 rounded-lg">
+                  <p className="text-sm font-medium text-blue-800">Q: {conv.question}</p>
+                </div>
+                <div className="bg-gray-100 p-2 rounded-lg">
+                  <p className="text-sm text-gray-800 whitespace-pre-wrap">{conv.answer}</p>
+                </div>
+              </div>
+            ))
+          )}
+          
+          {isAnswering && (
+            <div className="flex items-center justify-center p-4">
+              <Loader2 className="h-5 w-5 animate-spin mr-2" />
+              <span className="text-sm text-gray-600">Analyzing document...</span>
+            </div>
+          )}
+        </div>
+
+        <div className="p-4 border-t">
+          <div className="flex gap-2">
+            <Input
+              placeholder="Ask about the document..."
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              disabled={isAnswering}
+              onKeyPress={(e) => e.key === 'Enter' && !isAnswering && handleAskQuestion()}
+              className="text-sm"
+            />
+            <Button 
+              onClick={handleAskQuestion} 
+              disabled={!question.trim() || isAnswering}
+              size="sm"
+            >
+              {isAnswering ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <MessageSquare className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+          <p className="text-xs text-gray-500 mt-2">
+            This conversation is being saved to memory for future reference.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <Card className="w-full h-full flex flex-col">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <FileText className="h-5 w-5" />
-          ChatPDF Enhanced
-        </CardTitle>
-        <CardDescription>
-          Upload PDF documents or paste text blocks for AI-powered analysis
-        </CardDescription>
-      </CardHeader>
-      
-      <CardContent className="flex-1 flex flex-col space-y-4">
-        <Tabs defaultValue="upload" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="upload">
-              <Upload className="h-4 w-4 mr-2" />
-              Upload PDF
-            </TabsTrigger>
-            <TabsTrigger value="paste">
-              <Type className="h-4 w-4 mr-2" />
-              Paste Text
-            </TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="upload" className="space-y-3">
-            <div className="flex items-center gap-2">
+    <div className="p-4 space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <FileText className="h-5 w-5 text-blue-500" />
+            <span>Enhanced ChatPDF</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* PDF Upload Section */}
+          <div className="space-y-2">
+            <label className="block text-sm font-medium">Upload PDF Document</label>
+            <div className="flex items-center space-x-2">
               <input
-                ref={fileInputRef}
                 type="file"
                 accept=".pdf"
                 onChange={handleFileUpload}
                 className="hidden"
-                disabled={uploading}
+                id="pdf-upload"
               />
-              <Button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading || processing}
-                className="flex-1"
+              <label 
+                htmlFor="pdf-upload" 
+                className="flex-1 border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-blue-400 transition-colors"
               >
-                {uploading ? (
+                <Upload className="h-6 w-6 mx-auto mb-2 text-gray-400" />
+                <p className="text-sm text-gray-600">
+                  {file ? file.name : 'Click to upload PDF'}
+                </p>
+              </label>
+            </div>
+            {file && (
+              <Button 
+                onClick={handleProcessPDF} 
+                disabled={isProcessing}
+                className="w-full"
+              >
+                {isProcessing ? (
                   <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Uploading...
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Processing PDF...
                   </>
                 ) : (
-                  <>
-                    <Upload className="h-4 w-4 mr-2" />
-                    Upload PDF
-                  </>
+                  'Process PDF'
                 )}
               </Button>
-            </div>
-          </TabsContent>
-          
-          <TabsContent value="paste" className="space-y-3">
+            )}
+          </div>
+
+          {/* Text Input Section */}
+          <div className="space-y-2">
+            <label className="block text-sm font-medium">Or Paste Text Content</label>
             <Textarea
-              placeholder="Paste your text here (articles, documents, notes, etc.)"
+              placeholder="Paste large text blocks, articles, or documents here..."
               value={textInput}
               onChange={(e) => setTextInput(e.target.value)}
-              className="min-h-32 resize-none"
-              disabled={processing}
+              disabled={isProcessing}
+              rows={6}
+              className="resize-none"
             />
-            <Button
-              onClick={handleTextProcess}
-              disabled={!textInput.trim() || processing}
-              className="w-full"
-            >
-              {processing ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Processing...
-                </>
-              ) : (
-                <>
-                  <Type className="h-4 w-4 mr-2" />
-                  Process Text
-                </>
-              )}
-            </Button>
-          </TabsContent>
-        </Tabs>
-
-        {processing && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted p-3 rounded-lg">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Processing document... This may take a moment for large documents.
-          </div>
-        )}
-
-        {/* Current Document Info */}
-        {currentDoc && (
-          <div className="flex items-center justify-between p-3 bg-primary/10 rounded-lg">
-            <div className="flex items-center gap-2">
-              {currentDoc.type === 'pdf' ? (
-                <File className="h-4 w-4 text-primary" />
-              ) : (
-                <Type className="h-4 w-4 text-primary" />
-              )}
-              <div>
-                <p className="font-medium text-sm">{currentDoc.name}</p>
-                <p className="text-xs text-muted-foreground">
-                  {currentDoc.type === 'pdf' 
-                    ? `${currentDoc.totalPages} pages` 
-                    : `${currentDoc.wordCount} words`
-                  } • Processed {currentDoc.createdAt.toLocaleTimeString()}
-                </p>
-              </div>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleRemoveDoc}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-        )}
-
-        {/* Quick Questions */}
-        {currentDoc && chatHistory.length === 0 && (
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-muted-foreground">Quick questions:</p>
-            <div className="flex flex-wrap gap-2">
-              {quickQuestions.map((q, index) => (
-                <Badge
-                  key={index}
-                  variant="secondary"
-                  className="cursor-pointer hover:bg-primary hover:text-primary-foreground"
-                  onClick={() => setQuestion(q)}
-                >
-                  {q}
-                </Badge>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Chat History */}
-        {chatHistory.length > 0 && (
-          <div className="flex-1 min-h-0">
-            <ScrollArea className="h-48 border rounded-lg p-3">
-              <div className="space-y-3">
-                {chatHistory.map((message) => (
-                  <div
-                    key={message.id}
-                    className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div
-                      className={`max-w-[80%] rounded-lg p-3 text-sm ${
-                        message.type === 'user'
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-muted'
-                      }`}
-                    >
-                      <p className="whitespace-pre-wrap">{message.content}</p>
-                      <p className="text-xs opacity-70 mt-1">
-                        {message.timestamp.toLocaleTimeString()}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-                {loadingAnswer && (
-                  <div className="flex justify-start">
-                    <div className="bg-muted rounded-lg p-3 text-sm">
-                      <div className="flex items-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Analyzing document...
-                      </div>
-                    </div>
-                  </div>
+            {textInput.trim() && (
+              <Button 
+                onClick={handleTextProcess} 
+                disabled={isProcessing}
+                className="w-full"
+              >
+                {isProcessing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Processing Text...
+                  </>
+                ) : (
+                  'Process Text'
                 )}
-              </div>
-            </ScrollArea>
-          </div>
-        )}
-
-        {/* Question Input */}
-        <div className="flex gap-2">
-          <Input
-            placeholder={currentDoc ? "Ask a question about the document..." : "Upload a document or paste text first"}
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            disabled={!currentDoc || loadingAnswer}
-            onKeyPress={(e) => e.key === 'Enter' && !loadingAnswer && handleAskQuestion()}
-          />
-          <Button
-            onClick={handleAskQuestion}
-            disabled={!currentDoc || !question.trim() || loadingAnswer}
-          >
-            {loadingAnswer ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <MessageCircle className="h-4 w-4" />
+              </Button>
             )}
-          </Button>
-        </div>
-
-        {!currentDoc && (
-          <div className="text-center text-muted-foreground text-sm">
-            Upload a PDF or paste text to start analyzing your document
           </div>
-        )}
-      </CardContent>
-    </Card>
+
+          <div className="text-sm text-gray-600 dark:text-gray-400">
+            Upload a PDF or paste text to start an intelligent conversation. The chat will open in the right panel with full memory integration.
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 };

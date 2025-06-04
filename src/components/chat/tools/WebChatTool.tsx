@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { MessageSquare, Loader2, Globe } from 'lucide-react';
+import { MessageSquare, Loader2, Globe, X } from 'lucide-react';
 import { GROQ_API_KEY, GROQ_MODEL } from '@/utils/constants';
+import { memoryService } from '@/services/memoryService';
 import { toast } from "sonner";
 
 interface WebChatToolProps {
@@ -18,8 +19,11 @@ export const WebChatTool: React.FC<WebChatToolProps> = ({ onSendToChat }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [loadedContent, setLoadedContent] = useState<string>('');
   const [loadedUrl, setLoadedUrl] = useState<string>('');
+  const [conversationHistory, setConversationHistory] = useState<Array<{question: string, answer: string}>>([]);
+  const [conversationThreadId, setConversationThreadId] = useState<string | null>(null);
+  const [showConversation, setShowConversation] = useState(false);
 
-  const loadWebpage = async (url: string): Promise<string> => {
+  const extractWebContent = async (url: string): Promise<string> => {
     try {
       const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
       const data = await response.json();
@@ -74,9 +78,24 @@ export const WebChatTool: React.FC<WebChatToolProps> = ({ onSendToChat }) => {
 
     setIsProcessing(true);
     try {
-      const content = await loadWebpage(url);
+      const content = await extractWebContent(url);
       setLoadedContent(content);
       setLoadedUrl(url);
+      
+      // Create conversation thread
+      const threadId = memoryService.createThread('web_chat', `Web Chat: ${url}`);
+      setConversationThreadId(threadId);
+      memoryService.activateThread(threadId);
+      
+      // Save initial content to memory
+      memoryService.addToThread(threadId, {
+        type: 'web_chat',
+        title: `Loaded webpage: ${url}`,
+        content: content.substring(0, 500) + '...',
+        metadata: { url }
+      });
+      
+      setShowConversation(true);
       toast.success('Webpage loaded successfully');
     } catch (error) {
       console.error('Load error:', error);
@@ -110,11 +129,11 @@ export const WebChatTool: React.FC<WebChatToolProps> = ({ onSendToChat }) => {
           messages: [
             {
               role: 'system',
-              content: 'You are a helpful AI assistant that answers questions based on webpage content. Provide accurate, detailed responses based only on the provided content.'
+              content: 'You are a helpful AI assistant that answers questions based on webpage content. Provide accurate, detailed responses based only on the provided content. Reference specific parts of the content when relevant.'
             },
             {
               role: 'user',
-              content: `Based on the following webpage content, please answer this question: "${question}"\n\nWebpage URL: ${loadedUrl}\n\nContent:\n${loadedContent}`
+              content: `Based on the following webpage content, please answer this question: "${question}"\n\nWebpage URL: ${loadedUrl}\n\nContent:\n${loadedContent}\n\nPrevious conversation context:\n${conversationHistory.map(c => `Q: ${c.question}\nA: ${c.answer}`).join('\n\n')}`
             }
           ],
           max_tokens: 1000,
@@ -129,9 +148,21 @@ export const WebChatTool: React.FC<WebChatToolProps> = ({ onSendToChat }) => {
       const data = await response.json();
       const answer = data.choices[0]?.message?.content || 'Could not generate answer';
       
-      onSendToChat(`💬 **Web Chat Answer:**\n\n**Question:** ${question}\n**Source:** ${loadedUrl}\n\n**Answer:** ${answer}`);
-      toast.success('Question answered');
+      const newConversation = { question: question.trim(), answer };
+      setConversationHistory(prev => [...prev, newConversation]);
+      
+      // Save to memory and thread
+      if (conversationThreadId) {
+        memoryService.addToThread(conversationThreadId, {
+          type: 'web_chat',
+          title: `Q: ${question.trim()}`,
+          content: `Q: ${question.trim()}\nA: ${answer}`,
+          metadata: { url: loadedUrl }
+        });
+      }
+      
       setQuestion('');
+      toast.success('Question answered');
     } catch (error) {
       console.error('Chat error:', error);
       toast.error('Failed to answer question. Please try again.');
@@ -140,13 +171,99 @@ export const WebChatTool: React.FC<WebChatToolProps> = ({ onSendToChat }) => {
     }
   };
 
+  const handleCloseConversation = () => {
+    setShowConversation(false);
+    setConversationHistory([]);
+    if (conversationThreadId) {
+      memoryService.deactivateAllThreads();
+    }
+    setConversationThreadId(null);
+    setLoadedContent('');
+    setLoadedUrl('');
+    setUrl('');
+    onSendToChat(`🌐 **Web Chat Session Ended**\n\nConversation history has been saved to memory. You can reference this chat later!`);
+  };
+
+  if (showConversation && loadedContent) {
+    return (
+      <div className="w-80 h-full flex flex-col bg-white border-l">
+        <div className="flex items-center justify-between p-4 border-b bg-green-50">
+          <div className="flex items-center space-x-2">
+            <Globe className="h-5 w-5 text-green-500" />
+            <div>
+              <h3 className="font-semibold text-sm">Web Chat</h3>
+              <p className="text-xs text-gray-600 truncate max-w-[200px]">{loadedUrl}</p>
+            </div>
+          </div>
+          <Button variant="ghost" size="sm" onClick={handleCloseConversation}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          {conversationHistory.length === 0 ? (
+            <div className="text-center text-gray-500 text-sm">
+              <Globe className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p>Ask questions about this webpage!</p>
+            </div>
+          ) : (
+            conversationHistory.map((conv, index) => (
+              <div key={index} className="space-y-2">
+                <div className="bg-green-100 p-2 rounded-lg">
+                  <p className="text-sm font-medium text-green-800">Q: {conv.question}</p>
+                </div>
+                <div className="bg-gray-100 p-2 rounded-lg">
+                  <p className="text-sm text-gray-800 whitespace-pre-wrap">{conv.answer}</p>
+                </div>
+              </div>
+            ))
+          )}
+          
+          {isProcessing && (
+            <div className="flex items-center justify-center p-4">
+              <Loader2 className="h-5 w-5 animate-spin mr-2" />
+              <span className="text-sm text-gray-600">Processing question...</span>
+            </div>
+          )}
+        </div>
+
+        <div className="p-4 border-t">
+          <div className="flex gap-2">
+            <Input
+              placeholder="Ask about the webpage..."
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              disabled={isProcessing}
+              onKeyPress={(e) => e.key === 'Enter' && !isProcessing && handleAskQuestion()}
+              className="text-sm"
+            />
+            <Button 
+              onClick={handleAskQuestion} 
+              disabled={!question.trim() || isProcessing}
+              size="sm"
+            >
+              {isProcessing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <MessageSquare className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+          <p className="text-xs text-gray-500 mt-2">
+            This conversation is being saved to memory for future reference.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 space-y-4">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <MessageSquare className="h-5 w-5 text-green-500" />
-            <span>Web Chat</span>
+            <span>Enhanced Web Chat</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -162,7 +279,7 @@ export const WebChatTool: React.FC<WebChatToolProps> = ({ onSendToChat }) => {
               disabled={!url.trim() || isProcessing}
               className="w-full"
             >
-              {isProcessing && !loadedContent ? (
+              {isProcessing ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
                   Loading Page...
@@ -170,54 +287,14 @@ export const WebChatTool: React.FC<WebChatToolProps> = ({ onSendToChat }) => {
               ) : (
                 <>
                   <Globe className="h-4 w-4 mr-2" />
-                  Load Webpage
+                  Load & Chat with Webpage
                 </>
               )}
             </Button>
           </div>
-
-          {loadedContent && (
-            <>
-              <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-                <p className="text-sm text-green-800 dark:text-green-200">
-                  ✅ Loaded: {loadedUrl}
-                </p>
-                <p className="text-xs text-green-600 dark:text-green-300 mt-1">
-                  You can now ask multiple questions about this webpage content
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Textarea
-                  placeholder="Ask a question about the webpage..."
-                  value={question}
-                  onChange={(e) => setQuestion(e.target.value)}
-                  disabled={isProcessing}
-                  rows={2}
-                />
-                <Button 
-                  onClick={handleAskQuestion} 
-                  disabled={!question.trim() || isProcessing}
-                  className="w-full"
-                >
-                  {isProcessing && loadedContent ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      <MessageSquare className="h-4 w-4 mr-2" />
-                      Ask Question
-                    </>
-                  )}
-                </Button>
-              </div>
-            </>
-          )}
           
           <div className="text-sm text-gray-600 dark:text-gray-400">
-            Load any webpage and chat with its content continuously
+            Load any webpage and engage in continuous conversation. The chat will open in the right panel with full memory integration.
           </div>
         </CardContent>
       </Card>

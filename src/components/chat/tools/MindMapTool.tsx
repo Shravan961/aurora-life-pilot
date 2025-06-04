@@ -1,12 +1,13 @@
-import React, { useState, useCallback } from 'react';
+
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Map, Loader2, Plus, Bot, Brain, Zap } from 'lucide-react';
+import { Map, Loader2, Brain, Bot } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { GROQ_API_KEY, GROQ_MODEL } from '@/utils/constants';
+import { MindMapVisual } from '@/components/MindMapVisual';
+import { memoryService } from '@/services/memoryService';
 
 interface MindMapToolProps {
   onSendToChat: (message: string) => void;
@@ -30,7 +31,6 @@ export const MindMapTool: React.FC<MindMapToolProps> = ({ onSendToChat }) => {
   const [topic, setTopic] = useState('');
   const [loading, setLoading] = useState(false);
   const [mindMap, setMindMap] = useState<GeneratedMindMap | null>(null);
-  const [selectedNode, setSelectedNode] = useState<MindMapNode | null>(null);
   const { toast } = useToast();
 
   const colors = [
@@ -74,16 +74,16 @@ export const MindMapTool: React.FC<MindMapToolProps> = ({ onSendToChat }) => {
   "subtopics": [
     {
       "name": "Subtopic 1",
-      "children": ["Detail 1", "Detail 2", "Detail 3"]
+      "children": ["Detail 1", "Detail 2", "Detail 3", "Detail 4"]
     },
     {
       "name": "Subtopic 2", 
-      "children": ["Detail 1", "Detail 2", "Detail 3"]
+      "children": ["Detail 1", "Detail 2", "Detail 3", "Detail 4"]
     }
   ]
 }
 
-Make sure to include 4-6 main subtopics and 3-5 details for each subtopic. Focus on practical, actionable, and comprehensive coverage of the topic.`
+Create 5-7 main subtopics and 4-6 details for each subtopic. Focus on comprehensive coverage with practical, actionable, and educational content.`
             },
             {
               role: 'user',
@@ -91,7 +91,7 @@ Make sure to include 4-6 main subtopics and 3-5 details for each subtopic. Focus
             }
           ],
           temperature: 0.7,
-          max_tokens: 1000
+          max_tokens: 1500
         })
       });
 
@@ -111,7 +111,6 @@ Make sure to include 4-6 main subtopics and 3-5 details for each subtopic. Focus
       try {
         mindMapData = JSON.parse(content);
       } catch (parseError) {
-        // If JSON parsing fails, try to extract JSON from the content
         const jsonMatch = content.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           mindMapData = JSON.parse(jsonMatch[0]);
@@ -143,16 +142,24 @@ Make sure to include 4-6 main subtopics and 3-5 details for each subtopic. Focus
 
       setMindMap(generatedMap);
       
+      // Save to memory
+      memoryService.addMemory({
+        type: 'mind_map',
+        title: `Mind Map: ${generatedMap.topic}`,
+        content: JSON.stringify(generatedMap),
+        metadata: { mindMapTopic: generatedMap.topic }
+      });
+      
       // Send to chat
-      const mindMapText = `🧠 **Mind Map: ${generatedMap.topic}**\n\n${nodes.map(node => 
+      const mindMapText = `🧠 **Interactive Mind Map Created: ${generatedMap.topic}**\n\n${nodes.map(node => 
         `**${node.text}**\n${node.children.map(child => `  • ${child.text}`).join('\n')}`
-      ).join('\n\n')}`;
+      ).join('\n\n')}\n\n*Use the visual mind map interface to explore and create AI bots for each topic!*`;
       
       onSendToChat(mindMapText);
       
       toast({
         title: "Success",
-        description: "Mind map generated successfully!"
+        description: "Interactive mind map generated successfully!"
       });
 
     } catch (error) {
@@ -168,8 +175,6 @@ Make sure to include 4-6 main subtopics and 3-5 details for each subtopic. Focus
   };
 
   const createBotForNode = (node: MindMapNode) => {
-    setSelectedNode(node);
-    
     const botPrompt = `You are an AI expert specialized in "${node.text}". Your role is to provide detailed, practical, and actionable advice about this topic. You have deep knowledge about:
 
 ${node.children.map(child => `- ${child.text}`).join('\n')}
@@ -182,7 +187,7 @@ When users ask questions, provide comprehensive answers that are:
 
 Your personality is helpful, knowledgeable, and encouraging. You break down complex concepts into understandable steps.`;
 
-    // Save the bot configuration to localStorage
+    // Save the bot configuration
     const botConfig = {
       id: `bot_${Date.now()}`,
       name: `${node.text} Expert`,
@@ -196,51 +201,31 @@ Your personality is helpful, knowledgeable, and encouraging. You break down comp
     existingBots.push(botConfig);
     localStorage.setItem('botPersonas', JSON.stringify(existingBots));
 
+    // Save to memory
+    memoryService.addMemory({
+      type: 'bot_interaction',
+      title: `AI Bot Created: ${node.text} Expert`,
+      content: `Created specialized bot for ${node.text} with expertise in: ${node.children.map(c => c.text).join(', ')}`,
+      metadata: { botName: `${node.text} Expert`, botTopic: node.text }
+    });
+
     toast({
       title: "Bot Created",
       description: `${node.text} Expert bot has been created and saved!`
     });
 
-    onSendToChat(`🤖 **AI Bot Created**: "${node.text} Expert"\n\nThis bot is now available in your toolkit and specializes in providing expert advice about ${node.text}. It covers topics like:\n${node.children.map(child => `• ${child.text}`).join('\n')}`);
+    onSendToChat(`🤖 **AI Expert Bot Created**: "${node.text} Expert"\n\nThis specialized bot is now available in your toolkit with deep knowledge about:\n${node.children.map(child => `• ${child.text}`).join('\n')}\n\n*The bot has been saved and can provide expert guidance on this topic anytime!*`);
   };
-
-  const renderNode = (node: MindMapNode, isRoot: boolean = false) => (
-    <div key={node.id} className={`mb-3 ${isRoot ? 'ml-0' : 'ml-6'}`}>
-      <div className="flex items-center gap-2 mb-2">
-        <Badge 
-          className={`${node.color} cursor-pointer hover:opacity-80 transition-opacity`}
-          onClick={() => isRoot && createBotForNode(node)}
-        >
-          {node.text}
-        </Badge>
-        {isRoot && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => createBotForNode(node)}
-            className="h-6 w-6 p-0"
-          >
-            <Bot className="h-3 w-3" />
-          </Button>
-        )}
-      </div>
-      {node.children.length > 0 && (
-        <div className="border-l-2 border-gray-200 pl-4">
-          {node.children.map(child => renderNode(child))}
-        </div>
-      )}
-    </div>
-  );
 
   return (
     <Card className="w-full h-full flex flex-col">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Map className="h-5 w-5" />
-          Mind Map Generator
+          Enhanced Mind Map Generator
         </CardTitle>
         <CardDescription>
-          Create interactive mind maps and generate specialized AI bots for each topic
+          Create interactive visual mind maps with AI bot creation for each topic
         </CardDescription>
       </CardHeader>
       
@@ -248,7 +233,7 @@ Your personality is helpful, knowledgeable, and encouraging. You break down comp
         {/* Input Section */}
         <div className="flex gap-2">
           <Input
-            placeholder="Enter a topic (e.g., 'Healthy Habits', 'Digital Marketing')"
+            placeholder="Enter a topic (e.g., 'Machine Learning', 'Sustainable Living')"
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
             disabled={loading}
@@ -274,31 +259,22 @@ Your personality is helpful, knowledgeable, and encouraging. You break down comp
           <div className="flex-1 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-lg">{mindMap.topic}</h3>
-              <Badge variant="outline" className="text-xs">
-                {mindMap.createdAt.toLocaleString()}
-              </Badge>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Bot className="h-4 w-4" />
+                Click nodes to create AI experts
+              </div>
             </div>
 
-            <ScrollArea className="flex-1 border rounded-lg p-4">
-              <div className="space-y-4">
-                {/* Central Topic */}
-                <div className="text-center mb-6">
-                  <Badge className="bg-gradient-to-r from-blue-500 to-purple-500 text-white text-lg px-4 py-2">
-                    {mindMap.topic}
-                  </Badge>
-                </div>
-
-                {/* Subtopics */}
-                <div className="space-y-4">
-                  {mindMap.nodes.map(node => renderNode(node, true))}
-                </div>
-              </div>
-            </ScrollArea>
+            <MindMapVisual
+              topic={mindMap.topic}
+              nodes={mindMap.nodes}
+              onCreateBot={createBotForNode}
+            />
 
             <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
               <p className="text-sm text-blue-800 dark:text-blue-200 flex items-center gap-2">
                 <Bot className="h-4 w-4" />
-                <strong>Pro Tip:</strong> Click the bot icon next to any main topic to create a specialized AI expert for that area!
+                <strong>Interactive Features:</strong> Click on any node in the visual mind map to create a specialized AI expert bot for that topic!
               </p>
             </div>
           </div>
@@ -308,8 +284,8 @@ Your personality is helpful, knowledgeable, and encouraging. You break down comp
           <div className="flex-1 flex items-center justify-center text-center text-muted-foreground">
             <div>
               <Map className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>Enter a topic above to generate an interactive mind map</p>
-              <p className="text-sm mt-2">Each main branch can become a specialized AI bot!</p>
+              <p>Enter a topic above to generate an interactive visual mind map</p>
+              <p className="text-sm mt-2">Features: Cloud shapes, curved arrows, and AI bot creation!</p>
             </div>
           </div>
         )}

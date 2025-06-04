@@ -3,9 +3,10 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Search, Loader2 } from 'lucide-react';
+import { Search, Loader2, Clock, BookOpen } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { GROQ_API_KEY, GROQ_MODEL } from '@/utils/constants';
+import { enhancedSearchService } from '@/services/enhancedSearchService';
+import { memoryService } from '@/services/memoryService';
 
 interface AISearchToolProps {
   onSendToChat: (message: string) => void;
@@ -14,76 +15,8 @@ interface AISearchToolProps {
 export const AISearchTool: React.FC<AISearchToolProps> = ({ onSendToChat }) => {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
+  const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const { toast } = useToast();
-
-  const searchWeb = async (query: string): Promise<string[]> => {
-    try {
-      // Using DuckDuckGo for real-time search
-      const response = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`);
-      const data = await response.json();
-      
-      const results: string[] = [];
-      
-      // Add abstract if available
-      if (data.Abstract) {
-        results.push(`${data.AbstractSource || 'Source'}: ${data.Abstract}`);
-      }
-      
-      // Add related topics
-      if (data.RelatedTopics) {
-        data.RelatedTopics.slice(0, 5).forEach((topic: any) => {
-          if (topic.Text) {
-            results.push(`Related: ${topic.Text}`);
-          }
-        });
-      }
-      
-      // Add instant answer if available
-      if (data.Answer) {
-        results.unshift(`Direct Answer: ${data.Answer}`);
-      }
-      
-      return results;
-    } catch (error) {
-      console.error('Search error:', error);
-      return [];
-    }
-  };
-
-  const generateSummary = async (query: string, searchResults: string[]): Promise<string> => {
-    const searchContext = searchResults.join('\n\n');
-
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${GROQ_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: GROQ_MODEL,
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an expert research assistant who analyzes web search results and provides accurate, well-structured summaries. Focus on the most important and reliable information. Organize your response with clear bullet points and key insights.'
-          },
-          {
-            role: 'user',
-            content: `Query: "${query}"\n\nSearch Results:\n${searchContext}\n\nPlease provide a comprehensive summary that:\n1. Directly answers the user's query\n2. Highlights the most important information\n3. Organizes key points clearly\n4. Mentions any conflicting information if present\n\nFormat your response with bullet points where appropriate.`
-          }
-        ],
-        temperature: 0.3,
-        max_tokens: 1500
-      })
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(`Groq API error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
-    }
-
-    const data = await response.json();
-    return data.choices[0]?.message?.content || 'No summary could be generated.';
-  };
 
   const handleSearch = async () => {
     if (!query.trim()) {
@@ -98,34 +31,36 @@ export const AISearchTool: React.FC<AISearchToolProps> = ({ onSendToChat }) => {
     setLoading(true);
 
     try {
-      console.log('🔍 Searching for:', query);
+      console.log('🔍 Enhanced AI Search for:', query);
       
-      // Perform real-time web search
-      const searchResults = await searchWeb(query.trim());
+      // Perform enhanced search
+      const searchResult = await enhancedSearchService.performEnhancedSearch(query.trim());
       
-      if (searchResults.length === 0) {
-        throw new Error('No search results found');
-      }
-
-      console.log('📊 Search results obtained, generating AI summary...');
-      
-      // Generate AI summary using Groq
-      const summary = await generateSummary(query.trim(), searchResults);
+      // Save to memory
+      memoryService.addMemory({
+        type: 'chat',
+        title: `AI Search: ${query}`,
+        content: searchResult,
+        metadata: { searchQuery: query }
+      });
       
       // Send to chat with enhanced formatting
-      const message = `🔍 **AI Search Results for:** "${query}"\n\n${summary}\n\n---\n*Powered by real-time web search + AI analysis*`;
+      const message = `🔍 **Enhanced AI Search Results for:** "${query}"\n\n${searchResult}\n\n---\n*Powered by real-time web search + AI analysis + comprehensive summarization*`;
       onSendToChat(message);
+      
+      // Add to search history
+      setSearchHistory(prev => [query, ...prev.slice(0, 4)]);
       
       // Clear input on success
       setQuery('');
       
       toast({
         title: "Success",
-        description: "AI search completed successfully!"
+        description: "Enhanced AI search completed successfully!"
       });
       
     } catch (error) {
-      console.error('Search error:', error);
+      console.error('Enhanced search error:', error);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to perform search",
@@ -136,21 +71,25 @@ export const AISearchTool: React.FC<AISearchToolProps> = ({ onSendToChat }) => {
     }
   };
 
+  const handleHistoryClick = (historicalQuery: string) => {
+    setQuery(historicalQuery);
+  };
+
   return (
     <Card className="w-full">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Search className="h-5 w-5" />
-          AI Search (Real-Time + Summarizing)
+          Enhanced AI Search
         </CardTitle>
         <CardDescription>
-          Search the web in real-time and get AI-powered summaries with key insights and analysis
+          Real-time web search with AI-powered analysis, content extraction, and intelligent summarization
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex gap-2">
           <Input
-            placeholder="What would you like to search for?"
+            placeholder="What would you like to research?"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             disabled={loading}
@@ -167,17 +106,46 @@ export const AISearchTool: React.FC<AISearchToolProps> = ({ onSendToChat }) => {
             )}
           </Button>
         </div>
+
+        {searchHistory.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground flex items-center gap-1">
+              <Clock className="h-4 w-4" />
+              Recent Searches
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {searchHistory.map((historyQuery, index) => (
+                <Button
+                  key={index}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleHistoryClick(historyQuery)}
+                  className="text-xs"
+                  disabled={loading}
+                >
+                  {historyQuery}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
         
         {loading && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
-            🔍 Searching the web → 📊 Analyzing results → 🧠 Generating summary...
+            🔍 Searching web → 📊 Extracting content → 🧠 AI analysis → 📝 Synthesizing results...
           </div>
         )}
         
         <div className="text-xs text-muted-foreground bg-muted p-3 rounded-lg">
-          <strong>🚀 Enhanced Features:</strong> Real-time web search with AI-powered summarization, 
-          key insights extraction, and intelligent analysis using llama-3.3-70b-versatile
+          <strong>🚀 Enhanced Capabilities:</strong>
+          <ul className="mt-1 space-y-1 list-disc list-inside">
+            <li>Real-time web content extraction and analysis</li>
+            <li>AI-powered summarization with source attribution</li>
+            <li>Intelligent synthesis of multiple sources</li>
+            <li>Conversation memory integration</li>
+            <li>Search history for quick re-queries</li>
+          </ul>
         </div>
       </CardContent>
     </Card>
