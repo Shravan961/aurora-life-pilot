@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Search, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { webSearchService } from '@/services/webSearchService';
+import { GROQ_API_KEY, GROQ_MODEL } from '@/utils/constants';
 
 interface AISearchToolProps {
   onSendToChat: (message: string) => void;
@@ -16,42 +16,59 @@ export const AISearchTool: React.FC<AISearchToolProps> = ({ onSendToChat }) => {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
-  const generateSummary = async (query: string, searchResults: string): Promise<string> => {
-    const groqApiKey = import.meta.env.VITE_GROQ_API_KEY;
-    
-    if (!groqApiKey) {
-      throw new Error('Groq API key not configured');
+  const searchWeb = async (query: string): Promise<string[]> => {
+    try {
+      // Using DuckDuckGo for real-time search
+      const response = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`);
+      const data = await response.json();
+      
+      const results: string[] = [];
+      
+      // Add abstract if available
+      if (data.Abstract) {
+        results.push(`${data.AbstractSource || 'Source'}: ${data.Abstract}`);
+      }
+      
+      // Add related topics
+      if (data.RelatedTopics) {
+        data.RelatedTopics.slice(0, 5).forEach((topic: any) => {
+          if (topic.Text) {
+            results.push(`Related: ${topic.Text}`);
+          }
+        });
+      }
+      
+      // Add instant answer if available
+      if (data.Answer) {
+        results.unshift(`Direct Answer: ${data.Answer}`);
+      }
+      
+      return results;
+    } catch (error) {
+      console.error('Search error:', error);
+      return [];
     }
+  };
 
-    const prompt = `Please analyze and summarize the following web search results for the query: "${query}"
-
-Search Results:
-${searchResults}
-
-Provide a comprehensive summary that:
-1. Directly answers the user's query
-2. Highlights the most important and reliable information
-3. Organizes key points clearly
-4. Mentions any conflicting information if present
-
-Format your response in a clear, engaging way with bullet points where appropriate.`;
+  const generateSummary = async (query: string, searchResults: string[]): Promise<string> => {
+    const searchContext = searchResults.join('\n\n');
 
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${groqApiKey}`,
+        'Authorization': `Bearer ${GROQ_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'mixtral-8x7b-32768',
+        model: GROQ_MODEL,
         messages: [
           {
             role: 'system',
-            content: 'You are an expert research assistant who analyzes web search results and provides accurate, well-structured summaries.'
+            content: 'You are an expert research assistant who analyzes web search results and provides accurate, well-structured summaries. Focus on the most important and reliable information. Organize your response with clear bullet points and key insights.'
           },
           {
             role: 'user',
-            content: prompt
+            content: `Query: "${query}"\n\nSearch Results:\n${searchContext}\n\nPlease provide a comprehensive summary that:\n1. Directly answers the user's query\n2. Highlights the most important information\n3. Organizes key points clearly\n4. Mentions any conflicting information if present\n\nFormat your response with bullet points where appropriate.`
           }
         ],
         temperature: 0.3,
@@ -81,22 +98,22 @@ Format your response in a clear, engaging way with bullet points where appropria
     setLoading(true);
 
     try {
-      console.log('Searching for:', query);
+      console.log('🔍 Searching for:', query);
       
-      // Perform web search
-      const searchResults = await webSearchService.search(query.trim());
+      // Perform real-time web search
+      const searchResults = await searchWeb(query.trim());
       
-      if (!searchResults || searchResults.trim().length === 0) {
+      if (searchResults.length === 0) {
         throw new Error('No search results found');
       }
 
-      console.log('Search results obtained, generating summary...');
+      console.log('📊 Search results obtained, generating AI summary...');
       
       // Generate AI summary using Groq
       const summary = await generateSummary(query.trim(), searchResults);
       
-      // Send to chat
-      const message = `🔍 **Search Results for:** "${query}"\n\n${summary}`;
+      // Send to chat with enhanced formatting
+      const message = `🔍 **AI Search Results for:** "${query}"\n\n${summary}\n\n---\n*Powered by real-time web search + AI analysis*`;
       onSendToChat(message);
       
       // Clear input on success
@@ -104,7 +121,7 @@ Format your response in a clear, engaging way with bullet points where appropria
       
       toast({
         title: "Success",
-        description: "Search completed successfully!"
+        description: "AI search completed successfully!"
       });
       
     } catch (error) {
@@ -124,10 +141,10 @@ Format your response in a clear, engaging way with bullet points where appropria
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Search className="h-5 w-5" />
-          AI Search
+          AI Search (Real-Time + Summarizing)
         </CardTitle>
         <CardDescription>
-          Search the web and get AI-powered summaries of the most relevant information
+          Search the web in real-time and get AI-powered summaries with key insights and analysis
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -154,9 +171,14 @@ Format your response in a clear, engaging way with bullet points where appropria
         {loading && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Searching the web and generating summary...
+            🔍 Searching the web → 📊 Analyzing results → 🧠 Generating summary...
           </div>
         )}
+        
+        <div className="text-xs text-muted-foreground bg-muted p-3 rounded-lg">
+          <strong>🚀 Enhanced Features:</strong> Real-time web search with AI-powered summarization, 
+          key insights extraction, and intelligent analysis using llama-3.3-70b-versatile
+        </div>
       </CardContent>
     </Card>
   );

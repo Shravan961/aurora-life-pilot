@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Youtube, Loader2, RotateCcw, Clock, BookOpen } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { GROQ_API_KEY } from '@/utils/constants';
+import { GROQ_API_KEY, GROQ_MODEL } from '@/utils/constants';
 
 interface YouTubeSummaryToolProps {
   onSendToChat: (message: string) => void;
@@ -180,7 +179,7 @@ Keep it concise but informative.`}`;
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'mixtral-8x7b-32768',
+        model: GROQ_MODEL,
         messages: [
           {
             role: 'system',

@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MessageSquare, Loader2, Globe } from 'lucide-react';
-import { chatService } from '@/services/chatService';
+import { GROQ_API_KEY, GROQ_MODEL } from '@/utils/constants';
 import { toast } from "sonner";
 
 interface WebChatToolProps {
@@ -99,9 +99,35 @@ export const WebChatTool: React.FC<WebChatToolProps> = ({ onSendToChat }) => {
 
     setIsProcessing(true);
     try {
-      const prompt = `Based on the following webpage content, please answer this question: "${question}"\n\nWebpage URL: ${loadedUrl}\n\nContent:\n${loadedContent}`;
-      
-      const answer = await chatService.sendMessage(prompt);
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${GROQ_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: GROQ_MODEL,
+          messages: [
+            {
+              role: 'system',
+              content: 'You are a helpful AI assistant that answers questions based on webpage content. Provide accurate, detailed responses based only on the provided content.'
+            },
+            {
+              role: 'user',
+              content: `Based on the following webpage content, please answer this question: "${question}"\n\nWebpage URL: ${loadedUrl}\n\nContent:\n${loadedContent}`
+            }
+          ],
+          max_tokens: 1000,
+          temperature: 0.3,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate answer');
+      }
+
+      const data = await response.json();
+      const answer = data.choices[0]?.message?.content || 'Could not generate answer';
       
       onSendToChat(`💬 **Web Chat Answer:**\n\n**Question:** ${question}\n**Source:** ${loadedUrl}\n\n**Answer:** ${answer}`);
       toast.success('Question answered');
@@ -156,6 +182,9 @@ export const WebChatTool: React.FC<WebChatToolProps> = ({ onSendToChat }) => {
                 <p className="text-sm text-green-800 dark:text-green-200">
                   ✅ Loaded: {loadedUrl}
                 </p>
+                <p className="text-xs text-green-600 dark:text-green-300 mt-1">
+                  You can now ask multiple questions about this webpage content
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -188,7 +217,7 @@ export const WebChatTool: React.FC<WebChatToolProps> = ({ onSendToChat }) => {
           )}
           
           <div className="text-sm text-gray-600 dark:text-gray-400">
-            Load any webpage and chat with its content
+            Load any webpage and chat with its content continuously
           </div>
         </CardContent>
       </Card>

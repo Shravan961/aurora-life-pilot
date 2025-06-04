@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Globe, Loader2 } from 'lucide-react';
-import { chatService } from '@/services/chatService';
+import { GROQ_API_KEY, GROQ_MODEL } from '@/utils/constants';
 import { toast } from "sonner";
 
 interface WebSummaryToolProps {
@@ -81,9 +81,36 @@ export const WebSummaryTool: React.FC<WebSummaryToolProps> = ({ onSendToChat }) 
     setIsProcessing(true);
     try {
       const content = await extractWebContent(url);
-      const summary = await chatService.sendMessage(
-        `Please provide a concise summary of this webpage content:\n\nURL: ${url}\n\nContent:\n${content}`
-      );
+      
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${GROQ_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: GROQ_MODEL,
+          messages: [
+            {
+              role: 'system',
+              content: 'You are a helpful AI assistant that provides concise summaries of webpage content. Focus on key points and main takeaways.'
+            },
+            {
+              role: 'user',
+              content: `Please provide a concise summary of this webpage content:\n\nURL: ${url}\n\nContent:\n${content}`
+            }
+          ],
+          max_tokens: 500,
+          temperature: 0.3,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate summary');
+      }
+
+      const data = await response.json();
+      const summary = data.choices[0]?.message?.content || 'Could not generate summary';
       
       onSendToChat(`🌐 **Web Page Summary:**\n\n${summary}\n\n🔗 [View Source](${url})`);
       toast.success('Web page summarized successfully');
