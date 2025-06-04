@@ -36,41 +36,41 @@ export const ToolInterface: React.FC<ToolInterfaceProps> = ({
   const renderTool = () => {
     switch (toolId) {
       case 'ai-search':
-        return <AISearchTool onClose={onClose} onSendToChat={onSendToChat} />;
+        return <AISearchTool onSendToChat={onSendToChat} />;
       case 'youtube-summary':
-        return <YouTubeSummaryTool onClose={onClose} onSendToChat={onSendToChat} />;
+        return <YouTubeSummaryTool onSendToChat={onSendToChat} />;
       case 'chatpdf':
-        return <ChatPDFTool onClose={onClose} onSendToChat={onSendToChat} />;
+        return <ChatPDFTool onSendToChat={onSendToChat} />;
       case 'ai-solver':
-        return <AISolverTool onClose={onClose} onSendToChat={onSendToChat} />;
+        return <AISolverTool onSendToChat={onSendToChat} />;
       case 'make-it-more':
-        return <MakeItMoreTool onClose={onClose} onSendToChat={onSendToChat} />;
+        return <MakeItMoreTool onSendToChat={onSendToChat} />;
       case 'live-voice':
-        return <LiveVoiceTool onClose={onClose} onSendToChat={onSendToChat} />;
+        return <LiveVoiceTool onSendToChat={onSendToChat} />;
       case 'voice':
-        return <VoiceTool onClose={onClose} onSendToChat={onSendToChat} />;
+        return <VoiceTool onSendToChat={onSendToChat} />;
       case 'web-summary':
-        return <WebSummaryTool onClose={onClose} onSendToChat={onSendToChat} />;
+        return <WebSummaryTool onSendToChat={onSendToChat} />;
       case 'interpreting':
-        return <InterpretingTool onClose={onClose} onSendToChat={onSendToChat} />;
+        return <InterpretingTool onSendToChat={onSendToChat} />;
       case 'web-chat':
-        return <WebChatTool onClose={onClose} onSendToChat={onSendToChat} />;
+        return <WebChatTool onSendToChat={onSendToChat} />;
       case 'memo':
-        return <MemoTool onClose={onClose} onSendToChat={onSendToChat} />;
+        return <MemoTool onSendToChat={onSendToChat} />;
       case 'ai-detector':
-        return <AIDetectorTool onClose={onClose} onSendToChat={onSendToChat} />;
+        return <AIDetectorTool onSendToChat={onSendToChat} />;
       case 'craft-artifacts':
-        return <CraftArtifactsTool onClose={onClose} onSendToChat={onSendToChat} />;
+        return <CraftArtifactsTool onSendToChat={onSendToChat} />;
       case 'clone':
-        return <CloneTool onClose={onClose} onSendToChat={onSendToChat} />;
+        return <CloneTool onSendToChat={onSendToChat} />;
       case 'flashcards':
-        return <FlashcardsTool onClose={onClose} onSendToChat={onSendToChat} />;
+        return <FlashcardsTool onSendToChat={onSendToChat} />;
       case 'mind-map':
-        return <MindMapTool onClose={onClose} onSendToChat={onSendToChat} />;
+        return <MindMapTool onSendToChat={onSendToChat} />;
       case 'humanize':
-        return <HumanizeTool onClose={onClose} onSendToChat={onSendToChat} />;
+        return <HumanizeTool onSendToChat={onSendToChat} />;
       case 'roast-master':
-        return <RoastMasterTool onClose={onClose} onSendToChat={onSendToChat} />;
+        return <RoastMasterTool onSendToChat={onSendToChat} />;
       default:
         return (
           <div className="p-6 text-center">

@@ -1,5 +1,5 @@
 
-export const GROQ_API_KEY = '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';
+export const GROQ_API_KEY = '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';
 export const COHERE_API_KEY = 'LVeqM6aavSJPysbxUdFdY3lgjWnit3d0LJvE9aAk';
 export const CALORIE_NINJAS_KEY = 'AGA1x8JS+nq9z3KduU+vrA==C3MXzxW2DQ54kmuT';
 
