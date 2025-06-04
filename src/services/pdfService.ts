@@ -51,15 +51,64 @@ class PDFService {
     }
   }
 
+  async processText(text: string): Promise<ProcessedPDF> {
+    const chunks = this.chunkText(text, 1000);
+    
+    // Generate embeddings for each chunk
+    for (const chunk of chunks) {
+      chunk.embedding = await this.generateEmbedding(chunk.text);
+    }
+    
+    const processedText: ProcessedPDF = {
+      id: `text_${Date.now()}`,
+      name: 'Pasted Text Document',
+      chunks,
+      totalPages: 1,
+      createdAt: new Date(),
+    };
+    
+    this.processedPDFs.set(processedText.id, processedText);
+    return processedText;
+  }
+
   chunkText(text: string, chunkSize: number = 1000): PDFChunk[] {
     const chunks: PDFChunk[] = [];
-    const pages = text.split(/--- Page \d+ ---/);
     
-    pages.forEach((pageText, pageIndex) => {
-      if (!pageText.trim()) return;
+    // Check if text has page markers (from PDF extraction)
+    if (text.includes('--- Page')) {
+      const pages = text.split(/--- Page \d+ ---/);
       
-      // Split page into smaller chunks if it's too long
-      const sentences = pageText.split(/[.!?]+/).filter(s => s.trim());
+      pages.forEach((pageText, pageIndex) => {
+        if (!pageText.trim()) return;
+        
+        // Split page into smaller chunks if it's too long
+        const sentences = pageText.split(/[.!?]+/).filter(s => s.trim());
+        let currentChunk = '';
+        
+        sentences.forEach(sentence => {
+          if ((currentChunk + sentence).length > chunkSize && currentChunk) {
+            chunks.push({
+              id: `chunk_${chunks.length}`,
+              text: currentChunk.trim(),
+              pageNumber: pageIndex + 1,
+            });
+            currentChunk = sentence;
+          } else {
+            currentChunk += ' ' + sentence;
+          }
+        });
+        
+        if (currentChunk.trim()) {
+          chunks.push({
+            id: `chunk_${chunks.length}`,
+            text: currentChunk.trim(),
+            pageNumber: pageIndex + 1,
+          });
+        }
+      });
+    } else {
+      // Handle plain text without page markers
+      const sentences = text.split(/[.!?]+/).filter(s => s.trim());
       let currentChunk = '';
       
       sentences.forEach(sentence => {
@@ -67,7 +116,7 @@ class PDFService {
           chunks.push({
             id: `chunk_${chunks.length}`,
             text: currentChunk.trim(),
-            pageNumber: pageIndex + 1,
+            pageNumber: 1,
           });
           currentChunk = sentence;
         } else {
@@ -79,10 +128,10 @@ class PDFService {
         chunks.push({
           id: `chunk_${chunks.length}`,
           text: currentChunk.trim(),
-          pageNumber: pageIndex + 1,
+          pageNumber: 1,
         });
       }
-    });
+    }
     
     return chunks;
   }
@@ -191,7 +240,7 @@ class PDFService {
 
   async searchRelevantChunks(pdfId: string, query: string, limit: number = 5): Promise<PDFChunk[]> {
     const pdf = this.processedPDFs.get(pdfId);
-    if (!pdf) throw new Error('PDF not found');
+    if (!pdf) throw new Error('Document not found');
     
     const queryEmbedding = await this.generateEmbedding(query);
     
@@ -227,7 +276,7 @@ class PDFService {
         messages: [
           {
             role: 'system',
-            content: `You are a helpful AI assistant that answers questions based on PDF document content. Always ground your responses in the provided context and cite page numbers when possible. If you cannot find the answer in the context, say so clearly.`
+            content: `You are a helpful AI assistant that answers questions based on document content. Always ground your responses in the provided context and cite page numbers when possible. If you cannot find the answer in the context, say so clearly.`
           },
           {
             role: 'user',

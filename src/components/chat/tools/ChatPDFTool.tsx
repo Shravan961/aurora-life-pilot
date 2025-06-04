@@ -2,10 +2,12 @@
 import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { FileText, Upload, Loader2, MessageCircle, X, File } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { FileText, Upload, Loader2, MessageCircle, X, File, Type, Copy } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { pdfService } from '@/services/pdfService';
 
@@ -13,10 +15,12 @@ interface ChatPDFToolProps {
   onSendToChat: (message: string) => void;
 }
 
-interface ProcessedPDF {
+interface ProcessedDocument {
   id: string;
   name: string;
-  totalPages: number;
+  type: 'pdf' | 'text';
+  totalPages?: number;
+  wordCount?: number;
   createdAt: Date;
 }
 
@@ -30,8 +34,9 @@ interface ChatMessage {
 export const ChatPDFTool: React.FC<ChatPDFToolProps> = ({ onSendToChat }) => {
   const [uploading, setUploading] = useState(false);
   const [processing, setProcessing] = useState(false);
-  const [currentPDF, setCurrentPDF] = useState<ProcessedPDF | null>(null);
+  const [currentDoc, setCurrentDoc] = useState<ProcessedDocument | null>(null);
   const [question, setQuestion] = useState('');
+  const [textInput, setTextInput] = useState('');
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [loadingAnswer, setLoadingAnswer] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -66,9 +71,10 @@ export const ChatPDFTool: React.FC<ChatPDFToolProps> = ({ onSendToChat }) => {
       console.log('Processing PDF:', file.name);
       const processedPDF = await pdfService.processPDF(file);
       
-      setCurrentPDF({
+      setCurrentDoc({
         id: processedPDF.id,
         name: processedPDF.name,
+        type: 'pdf',
         totalPages: processedPDF.totalPages,
         createdAt: processedPDF.createdAt
       });
@@ -80,7 +86,6 @@ export const ChatPDFTool: React.FC<ChatPDFToolProps> = ({ onSendToChat }) => {
         description: `PDF "${file.name}" processed successfully! You can now ask questions about it.`
       });
 
-      // Send confirmation to main chat
       onSendToChat(`📄 **PDF Uploaded**: "${file.name}" (${processedPDF.totalPages} pages) is now ready for analysis. Ask me anything about this document!`);
 
     } catch (error) {
@@ -99,11 +104,56 @@ export const ChatPDFTool: React.FC<ChatPDFToolProps> = ({ onSendToChat }) => {
     }
   };
 
-  const handleAskQuestion = async () => {
-    if (!question.trim() || !currentPDF) {
+  const handleTextProcess = async () => {
+    if (!textInput.trim()) {
       toast({
         title: "Error",
-        description: currentPDF ? "Please enter a question" : "Please upload a PDF first",
+        description: "Please enter some text to analyze",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setProcessing(true);
+
+    try {
+      const processedText = await pdfService.processText(textInput.trim());
+      
+      setCurrentDoc({
+        id: processedText.id,
+        name: 'Pasted Text Document',
+        type: 'text',
+        wordCount: textInput.trim().split(/\s+/).length,
+        createdAt: new Date()
+      });
+
+      setChatHistory([]);
+      setTextInput('');
+      
+      toast({
+        title: "Success",
+        description: "Text processed successfully! You can now ask questions about it."
+      });
+
+      onSendToChat(`📝 **Text Document**: Processed ${textInput.trim().split(/\s+/).length} words of text. Ready for analysis!`);
+
+    } catch (error) {
+      console.error('Text processing error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to process text",
+        variant: "destructive"
+      });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleAskQuestion = async () => {
+    if (!question.trim() || !currentDoc) {
+      toast({
+        title: "Error",
+        description: currentDoc ? "Please enter a question" : "Please upload a document or paste text first",
         variant: "destructive"
       });
       return;
@@ -123,7 +173,7 @@ export const ChatPDFTool: React.FC<ChatPDFToolProps> = ({ onSendToChat }) => {
 
     try {
       console.log('Asking question:', currentQuestion);
-      const answer = await pdfService.answerQuestion(currentPDF.id, currentQuestion);
+      const answer = await pdfService.answerQuestion(currentDoc.id, currentQuestion);
       
       const assistantMessage: ChatMessage = {
         id: `msg_${Date.now()}_response`,
@@ -134,8 +184,7 @@ export const ChatPDFTool: React.FC<ChatPDFToolProps> = ({ onSendToChat }) => {
 
       setChatHistory(prev => [...prev, assistantMessage]);
 
-      // Send to main chat as well
-      onSendToChat(`**Q:** ${currentQuestion}\n\n**A:** ${answer}\n\n*Source: ${currentPDF.name}*`);
+      onSendToChat(`**Q:** ${currentQuestion}\n\n**A:** ${answer}\n\n*Source: ${currentDoc.name}*`);
 
     } catch (error) {
       console.error('Question answering error:', error);
@@ -158,14 +207,14 @@ export const ChatPDFTool: React.FC<ChatPDFToolProps> = ({ onSendToChat }) => {
     }
   };
 
-  const handleRemovePDF = () => {
-    if (currentPDF) {
-      pdfService.removePDF(currentPDF.id);
-      setCurrentPDF(null);
+  const handleRemoveDoc = () => {
+    if (currentDoc) {
+      pdfService.removePDF(currentDoc.id);
+      setCurrentDoc(null);
       setChatHistory([]);
       toast({
         title: "Success",
-        description: "PDF removed successfully"
+        description: "Document removed successfully"
       });
     }
   };
@@ -183,68 +232,114 @@ export const ChatPDFTool: React.FC<ChatPDFToolProps> = ({ onSendToChat }) => {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <FileText className="h-5 w-5" />
-          ChatPDF
+          ChatPDF Enhanced
         </CardTitle>
         <CardDescription>
-          Upload PDF documents and have AI-powered conversations about their content
+          Upload PDF documents or paste text blocks for AI-powered analysis
         </CardDescription>
       </CardHeader>
       
       <CardContent className="flex-1 flex flex-col space-y-4">
-        {/* File Upload Section */}
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".pdf"
-              onChange={handleFileUpload}
-              className="hidden"
-              disabled={uploading}
+        <Tabs defaultValue="upload" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="upload">
+              <Upload className="h-4 w-4 mr-2" />
+              Upload PDF
+            </TabsTrigger>
+            <TabsTrigger value="paste">
+              <Type className="h-4 w-4 mr-2" />
+              Paste Text
+            </TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="upload" className="space-y-3">
+            <div className="flex items-center gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf"
+                onChange={handleFileUpload}
+                className="hidden"
+                disabled={uploading}
+              />
+              <Button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading || processing}
+                className="flex-1"
+              >
+                {uploading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Upload PDF
+                  </>
+                )}
+              </Button>
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="paste" className="space-y-3">
+            <Textarea
+              placeholder="Paste your text here (articles, documents, notes, etc.)"
+              value={textInput}
+              onChange={(e) => setTextInput(e.target.value)}
+              className="min-h-32 resize-none"
+              disabled={processing}
             />
             <Button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading || processing}
-              className="flex-1"
+              onClick={handleTextProcess}
+              disabled={!textInput.trim() || processing}
+              className="w-full"
             >
-              {uploading ? (
+              {processing ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Uploading...
+                  Processing...
                 </>
               ) : (
                 <>
-                  <Upload className="h-4 w-4 mr-2" />
-                  Upload PDF
+                  <Type className="h-4 w-4 mr-2" />
+                  Process Text
                 </>
               )}
             </Button>
+          </TabsContent>
+        </Tabs>
+
+        {processing && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted p-3 rounded-lg">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Processing document... This may take a moment for large documents.
           </div>
+        )}
 
-          {processing && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted p-3 rounded-lg">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Processing PDF... This may take a moment for large documents.
-            </div>
-          )}
-        </div>
-
-        {/* Current PDF Info */}
-        {currentPDF && (
+        {/* Current Document Info */}
+        {currentDoc && (
           <div className="flex items-center justify-between p-3 bg-primary/10 rounded-lg">
             <div className="flex items-center gap-2">
-              <File className="h-4 w-4 text-primary" />
+              {currentDoc.type === 'pdf' ? (
+                <File className="h-4 w-4 text-primary" />
+              ) : (
+                <Type className="h-4 w-4 text-primary" />
+              )}
               <div>
-                <p className="font-medium text-sm">{currentPDF.name}</p>
+                <p className="font-medium text-sm">{currentDoc.name}</p>
                 <p className="text-xs text-muted-foreground">
-                  {currentPDF.totalPages} pages • Uploaded {currentPDF.createdAt.toLocaleTimeString()}
+                  {currentDoc.type === 'pdf' 
+                    ? `${currentDoc.totalPages} pages` 
+                    : `${currentDoc.wordCount} words`
+                  } • Processed {currentDoc.createdAt.toLocaleTimeString()}
                 </p>
               </div>
             </div>
             <Button
               variant="ghost"
               size="sm"
-              onClick={handleRemovePDF}
+              onClick={handleRemoveDoc}
             >
               <X className="h-4 w-4" />
             </Button>
@@ -252,7 +347,7 @@ export const ChatPDFTool: React.FC<ChatPDFToolProps> = ({ onSendToChat }) => {
         )}
 
         {/* Quick Questions */}
-        {currentPDF && chatHistory.length === 0 && (
+        {currentDoc && chatHistory.length === 0 && (
           <div className="space-y-2">
             <p className="text-sm font-medium text-muted-foreground">Quick questions:</p>
             <div className="flex flex-wrap gap-2">
@@ -312,15 +407,15 @@ export const ChatPDFTool: React.FC<ChatPDFToolProps> = ({ onSendToChat }) => {
         {/* Question Input */}
         <div className="flex gap-2">
           <Input
-            placeholder={currentPDF ? "Ask a question about the PDF..." : "Upload a PDF first"}
+            placeholder={currentDoc ? "Ask a question about the document..." : "Upload a document or paste text first"}
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
-            disabled={!currentPDF || loadingAnswer}
+            disabled={!currentDoc || loadingAnswer}
             onKeyPress={(e) => e.key === 'Enter' && !loadingAnswer && handleAskQuestion()}
           />
           <Button
             onClick={handleAskQuestion}
-            disabled={!currentPDF || !question.trim() || loadingAnswer}
+            disabled={!currentDoc || !question.trim() || loadingAnswer}
           >
             {loadingAnswer ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -330,9 +425,9 @@ export const ChatPDFTool: React.FC<ChatPDFToolProps> = ({ onSendToChat }) => {
           </Button>
         </div>
 
-        {!currentPDF && (
+        {!currentDoc && (
           <div className="text-center text-muted-foreground text-sm">
-            Upload a PDF to start chatting with your document
+            Upload a PDF or paste text to start analyzing your document
           </div>
         )}
       </CardContent>

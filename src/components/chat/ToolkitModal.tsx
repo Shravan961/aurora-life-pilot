@@ -2,7 +2,7 @@
 import React from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { X, Search, FileText, Mic, Volume2, Zap, Calculator, Map, Users, Camera, Languages, Shield, Globe2, MessageCircle, Plus, Smile, GraduationCap, Youtube, Globe, Eye, MessageSquare, StickyNote, Palette, RotateCcw, Wand2, Sparkles } from 'lucide-react';
+import { X, Search, FileText, Mic, Volume2, Zap, Calculator, Map, Users, Camera, Languages, Shield, Globe2, MessageCircle, Plus, Smile, GraduationCap, Youtube, Globe, Eye, MessageSquare, StickyNote, Palette, RotateCcw, Wand2, Sparkles, Bot } from 'lucide-react';
 
 interface ToolkitModalProps {
   isOpen: boolean;
@@ -42,14 +42,14 @@ export const ToolkitModal: React.FC<ToolkitModalProps> = ({ isOpen, onClose, onT
     {
       name: "🧪 Analysis",
       tools: [
-        { id: 'interpreting', name: 'Interpreting', icon: Languages, description: 'Translate & interpret text' },
         { id: 'ai-detector', name: 'AI Detector', icon: Shield, description: 'Detect AI-generated text' },
       ]
     },
     {
-      name: "🤖 Agents",
+      name: "🤖 AI Agents",
       tools: [
-        { id: 'clone', name: 'Clone', icon: Users, description: 'Clone conversation' },
+        { id: 'bots', name: 'Bots', icon: Bot, description: 'Create & manage AI personalities' },
+        { id: 'clone', name: 'Clone', icon: Users, description: 'Clone conversation style' },
       ]
     },
     {
@@ -80,7 +80,7 @@ export const ToolkitModal: React.FC<ToolkitModalProps> = ({ isOpen, onClose, onT
         <CardContent className="p-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-              🧰 Aurafy Toolkit
+              🧰 Aurafy Toolkit (Enhanced)
             </h2>
             <Button variant="ghost" size="sm" onClick={onClose}>
               <X className="h-5 w-5" />
@@ -120,7 +120,7 @@ export const ToolkitModal: React.FC<ToolkitModalProps> = ({ isOpen, onClose, onT
           
           <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
             <p className="text-sm text-blue-800 dark:text-blue-200">
-              <strong>Toolkit Features:</strong> Select any tool to open it in the sidebar. Working tools include Humanize, AI Solver, AI Search, Memo, and Voice. More tools are being developed!
+              <strong>🚀 Enhanced Toolkit:</strong> Now featuring Mind Map with AI Bot creation, enhanced YouTube summaries, ChatPDF with text support, and comprehensive AI personality management!
             </p>
           </div>
         </CardContent>

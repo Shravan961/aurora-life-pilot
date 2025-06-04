@@ -3,8 +3,11 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Youtube, Loader2, RotateCcw } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import { Youtube, Loader2, RotateCcw, Clock, BookOpen } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { GROQ_API_KEY } from '@/utils/constants';
 
 interface YouTubeSummaryToolProps {
   onSendToChat: (message: string) => void;
@@ -21,6 +24,7 @@ export const YouTubeSummaryTool: React.FC<YouTubeSummaryToolProps> = ({ onSendTo
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [lastVideoData, setLastVideoData] = useState<VideoData | null>(null);
+  const [detailedSummary, setDetailedSummary] = useState(false);
   const { toast } = useToast();
 
   const extractVideoId = (url: string): string | null => {
@@ -107,13 +111,7 @@ export const YouTubeSummaryTool: React.FC<YouTubeSummaryToolProps> = ({ onSendTo
     }
   };
 
-  const generateSummary = async (videoData: VideoData): Promise<string> => {
-    const groqApiKey = import.meta.env.VITE_GROQ_API_KEY;
-    
-    if (!groqApiKey) {
-      throw new Error('Groq API key not configured');
-    }
-
+  const generateSummary = async (videoData: VideoData, isDetailed: boolean = false): Promise<string> => {
     let content = '';
     if (videoData.transcript) {
       content = `Title: ${videoData.title}\n\nTranscript: ${videoData.transcript}`;
@@ -130,30 +128,55 @@ export const YouTubeSummaryTool: React.FC<YouTubeSummaryToolProps> = ({ onSendTo
       content = content.substring(0, maxLength) + '...';
     }
 
-    const prompt = `Please provide a comprehensive summary of this YouTube video:
+    const promptType = isDetailed ? 'detailed' : 'concise';
+    const prompt = `Please provide a ${promptType} summary of this YouTube video:
 
 ${content}
 
-Format your response as follows:
-🎯 **Main Topic**: [Brief overview]
+${isDetailed ? 
+`Format your response as follows:
+🎯 **Overview**: [2-3 sentence overview]
 
-📋 **Key Takeaways**:
-• [Point 1]
-• [Point 2]
-• [Point 3]
+📋 **Main Points**:
+• [Detailed point 1 with context]
+• [Detailed point 2 with context]
+• [Detailed point 3 with context]
+• [Additional points as needed]
 
-💡 **Highlights**:
-• [Important insight 1]
-• [Important insight 2]
+💡 **Key Insights**:
+• [Important insight 1 with explanation]
+• [Important insight 2 with explanation]
+• [Additional insights]
+
+🎯 **Takeaways**:
+• [Actionable takeaway 1]
+• [Actionable takeaway 2]
+• [Actionable takeaway 3]
+
+⏱️ **Time Investment**: Worth watching if you're interested in [specific use cases]
 
 🔗 **Source**: ${videoData.url}
 
-Keep it concise but informative, focusing on the most valuable insights.`;
+Provide comprehensive coverage with specific details and actionable insights.` :
+
+`Format your response as follows:
+🎯 **TL;DR**: [Quick 1-sentence summary]
+
+📋 **Key Points**:
+• [Point 1]
+• [Point 2] 
+• [Point 3]
+
+💡 **Main Takeaway**: [Most important insight]
+
+🔗 **Source**: ${videoData.url}
+
+Keep it concise but informative.`}`;
 
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${groqApiKey}`,
+        'Authorization': `Bearer ${GROQ_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -161,7 +184,7 @@ Keep it concise but informative, focusing on the most valuable insights.`;
         messages: [
           {
             role: 'system',
-            content: 'You are an expert content analyst who creates engaging, structured summaries of video content.'
+            content: 'You are an expert content analyst who creates engaging, structured summaries of video content. Focus on practical value and actionable insights.'
           },
           {
             role: 'user',
@@ -169,7 +192,7 @@ Keep it concise but informative, focusing on the most valuable insights.`;
           }
         ],
         temperature: 0.7,
-        max_tokens: 1000
+        max_tokens: isDetailed ? 1500 : 800
       })
     });
 
@@ -230,17 +253,18 @@ Keep it concise but informative, focusing on the most valuable insights.`;
       }
       
       // Generate summary using Groq
-      const summary = await generateSummary(videoData);
+      const summary = await generateSummary(videoData, detailedSummary);
       
       // Send to chat
-      onSendToChat(`YouTube Summary: ${videoData.title}\n\n${summary}`);
+      const summaryType = detailedSummary ? 'Detailed Summary' : 'Quick Summary';
+      onSendToChat(`📺 **YouTube ${summaryType}**: ${videoData.title}\n\n${summary}`);
       
       // Clear input on success
       setUrl('');
       
       toast({
         title: "Success",
-        description: "Video summarized successfully!"
+        description: `Video ${detailedSummary ? 'detailed summary' : 'summary'} generated successfully!`
       });
       
     } catch (error) {
@@ -261,8 +285,9 @@ Keep it concise but informative, focusing on the most valuable insights.`;
     setLoading(true);
     
     try {
-      const summary = await generateSummary(lastVideoData);
-      onSendToChat(`YouTube Summary (Regenerated): ${lastVideoData.title}\n\n${summary}`);
+      const summary = await generateSummary(lastVideoData, detailedSummary);
+      const summaryType = detailedSummary ? 'Detailed Summary' : 'Quick Summary';
+      onSendToChat(`📺 **YouTube ${summaryType} (Regenerated)**: ${lastVideoData.title}\n\n${summary}`);
       
       toast({
         title: "Success",
@@ -285,10 +310,10 @@ Keep it concise but informative, focusing on the most valuable insights.`;
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Youtube className="h-5 w-5" />
-          YouTube Summary
+          YouTube Summarizer (Enhanced)
         </CardTitle>
         <CardDescription>
-          Get AI-powered summaries of YouTube videos with key takeaways and highlights
+          Get AI-powered summaries with TL;DR, key points, and actionable insights
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -311,6 +336,29 @@ Keep it concise but informative, focusing on the most valuable insights.`;
             )}
           </Button>
         </div>
+
+        <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+          <div className="flex items-center gap-2">
+            {detailedSummary ? (
+              <BookOpen className="h-4 w-4 text-blue-600" />
+            ) : (
+              <Clock className="h-4 w-4 text-green-600" />
+            )}
+            <span className="text-sm font-medium">
+              {detailedSummary ? 'Detailed Summary' : 'Quick Summary'}
+            </span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <label htmlFor="summary-mode" className="text-sm">
+              {detailedSummary ? 'Detailed' : 'Quick'}
+            </label>
+            <Switch
+              id="summary-mode"
+              checked={detailedSummary}
+              onCheckedChange={setDetailedSummary}
+            />
+          </div>
+        </div>
         
         {lastVideoData && (
           <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
@@ -329,6 +377,12 @@ Keep it concise but informative, focusing on the most valuable insights.`;
             </Button>
           </div>
         )}
+
+        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+          <p className="text-sm text-blue-800 dark:text-blue-200">
+            <strong>💡 Enhanced Features:</strong> Toggle between quick TL;DR summaries and detailed analysis with actionable insights. Works with any YouTube video!
+          </p>
+        </div>
       </CardContent>
     </Card>
   );

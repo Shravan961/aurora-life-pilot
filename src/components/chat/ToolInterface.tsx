@@ -11,7 +11,6 @@ import { MakeItMoreTool } from './tools/MakeItMoreTool';
 import { LiveVoiceTool } from './tools/LiveVoiceTool';
 import { VoiceTool } from './tools/VoiceTool';
 import { WebSummaryTool } from './tools/WebSummaryTool';
-import { InterpretingTool } from './tools/InterpretingTool';
 import { WebChatTool } from './tools/WebChatTool';
 import { MemoTool } from './tools/MemoTool';
 import { AIDetectorTool } from './tools/AIDetectorTool';
@@ -21,6 +20,7 @@ import { FlashcardsTool } from './tools/FlashcardsTool';
 import { MindMapTool } from './tools/MindMapTool';
 import { HumanizeTool } from './tools/HumanizeTool';
 import { RoastMasterTool } from './tools/RoastMasterTool';
+import { BotsTool } from './tools/BotsTool';
 
 interface ToolInterfaceProps {
   toolId: string;
@@ -51,8 +51,6 @@ export const ToolInterface: React.FC<ToolInterfaceProps> = ({
         return <VoiceTool onSendToChat={onSendToChat} />;
       case 'web-summary':
         return <WebSummaryTool onSendToChat={onSendToChat} />;
-      case 'interpreting':
-        return <InterpretingTool onSendToChat={onSendToChat} />;
       case 'web-chat':
         return <WebChatTool onSendToChat={onSendToChat} />;
       case 'memo':
@@ -71,6 +69,8 @@ export const ToolInterface: React.FC<ToolInterfaceProps> = ({
         return <HumanizeTool onSendToChat={onSendToChat} />;
       case 'roast-master':
         return <RoastMasterTool onSendToChat={onSendToChat} />;
+      case 'bots':
+        return <BotsTool onSendToChat={onSendToChat} />;
       default:
         return (
           <div className="p-6 text-center">
