@@ -2,7 +2,7 @@
 import React from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { X, Bot, Search, FileText, Mic, Volume2, Copy, Image, Zap, Brain, MessageSquare, Globe, Youtube, Flame, Book, Lightbulb, Edit, Calculator, Map, Users, Camera, Languages, Shield, Globe2, MessageCircle, Plus, Smile, GraduationCap } from 'lucide-react';
+import { X, Search, FileText, Mic, Volume2, Zap, Calculator, Map, Users, Camera, Languages, Shield, Globe2, MessageCircle, Plus, Smile, GraduationCap, Youtube, Globe, Eye, MessageSquare, StickyNote, Palette, RotateCcw, Wand2, Sparkles } from 'lucide-react';
 
 interface ToolkitModalProps {
   isOpen: boolean;
@@ -17,8 +17,8 @@ export const ToolkitModal: React.FC<ToolkitModalProps> = ({ isOpen, onClose, onT
     {
       name: "✍️ Writing Tools",
       tools: [
-        { id: 'humanize', name: 'Humanize', icon: Edit, description: 'Make text more natural' },
-        { id: 'make-more', name: 'Make It More', icon: Plus, description: 'Expand & elaborate text' },
+        { id: 'humanize', name: 'Humanize', icon: Sparkles, description: 'Make text more natural' },
+        { id: 'make-it-more', name: 'Make It More', icon: Wand2, description: 'Expand & elaborate text' },
         { id: 'craft-artifacts', name: 'Craft Artifacts', icon: Zap, description: 'Generate downloadable content' },
       ]
     },
@@ -42,7 +42,6 @@ export const ToolkitModal: React.FC<ToolkitModalProps> = ({ isOpen, onClose, onT
     {
       name: "🧪 Analysis",
       tools: [
-        { id: 'pic-this', name: 'Pic-This', icon: Camera, description: 'Image analysis & description' },
         { id: 'interpreting', name: 'Interpreting', icon: Languages, description: 'Translate & interpret text' },
         { id: 'ai-detector', name: 'AI Detector', icon: Shield, description: 'Detect AI-generated text' },
       ]
@@ -50,8 +49,7 @@ export const ToolkitModal: React.FC<ToolkitModalProps> = ({ isOpen, onClose, onT
     {
       name: "🤖 Agents",
       tools: [
-        { id: 'bots', name: 'Bots', icon: Users, description: 'Specialized AI assistants' },
-        { id: 'clone', name: 'Clone', icon: Copy, description: 'Clone conversation' },
+        { id: 'clone', name: 'Clone', icon: Users, description: 'Clone conversation' },
       ]
     },
     {
@@ -59,7 +57,7 @@ export const ToolkitModal: React.FC<ToolkitModalProps> = ({ isOpen, onClose, onT
       tools: [
         { id: 'voice', name: 'Voice', icon: Mic, description: 'Voice to text input' },
         { id: 'live-voice', name: 'Live Voice', icon: Volume2, description: 'Real-time voice chat' },
-        { id: 'chat-pdf', name: 'ChatPDF', icon: FileText, description: 'Chat with PDF content' },
+        { id: 'chatpdf', name: 'ChatPDF', icon: FileText, description: 'Chat with PDF content' },
       ]
     },
     {
@@ -71,7 +69,7 @@ export const ToolkitModal: React.FC<ToolkitModalProps> = ({ isOpen, onClose, onT
     {
       name: "🧠 Personal",
       tools: [
-        { id: 'memo', name: 'Memo', icon: FileText, description: 'Create quick notes' },
+        { id: 'memo', name: 'Memo', icon: StickyNote, description: 'Create quick notes' },
       ]
     }
   ];
@@ -103,7 +101,7 @@ export const ToolkitModal: React.FC<ToolkitModalProps> = ({ isOpen, onClose, onT
                         key={tool.id}
                         variant="outline"
                         className="h-auto p-4 flex flex-col items-center space-y-2 hover:scale-105 transition-transform"
-                        onClick={() => onToolSelect(tool.name)}
+                        onClick={() => onToolSelect(tool.id)}
                       >
                         <Icon className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
                         <div className="text-center">

@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,7 +11,7 @@ import { chatService } from '@/services/chatService';
 import { generateId, getTimestamp, formatTime } from '@/utils/helpers';
 import { ChatMessage } from '@/types';
 import { ToolkitModal } from '@/components/chat/ToolkitModal';
-import { ToolkitSidebar } from '@/components/chat/ToolkitSidebar';
+import { ToolInterface } from '@/components/chat/ToolInterface';
 import { supabaseChatService, SupabaseClone } from '@/services/supabaseChat';
 import { chatStorage } from '@/services/chatDatabase';
 import { toast } from "sonner";
@@ -312,8 +311,8 @@ export const ChatbotPage: React.FC<ChatbotPageProps> = ({ onNavigateBack }) => {
     }
   };
 
-  const handleToolSelect = (toolName: string) => {
-    setActiveTool(toolName);
+  const handleToolSelect = (toolId: string) => {
+    setActiveTool(toolId);
     setShowToolkit(false);
   };
 
@@ -477,10 +476,10 @@ export const ChatbotPage: React.FC<ChatbotPageProps> = ({ onNavigateBack }) => {
           </div>
         </div>
 
-        {/* Toolkit Sidebar */}
+        {/* Tool Interface */}
         {activeTool && (
-          <ToolkitSidebar
-            activeTool={activeTool}
+          <ToolInterface
+            toolId={activeTool}
             onClose={handleCloseTool}
             onSendToChat={handleToolMessage}
           />
