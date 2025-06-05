@@ -297,6 +297,84 @@ export type Database = {
         }
         Relationships: []
       }
+      subscribers: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          stripe_customer_id: string | null
+          subscribed: boolean
+          subscription_end: string | null
+          subscription_tier: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          stripe_customer_id?: string | null
+          subscribed?: boolean
+          subscription_end?: string | null
+          subscription_tier?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          stripe_customer_id?: string | null
+          subscribed?: boolean
+          subscription_end?: string | null
+          subscription_tier?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      usage_limits: {
+        Row: {
+          created_at: string
+          food_logs_used: number
+          functions_used: number
+          id: string
+          messages_used: number
+          mood_logs_used: number
+          reset_date: string
+          symptom_logs_used: number
+          tasks_used: number
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          food_logs_used?: number
+          functions_used?: number
+          id?: string
+          messages_used?: number
+          mood_logs_used?: number
+          reset_date?: string
+          symptom_logs_used?: number
+          tasks_used?: number
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          food_logs_used?: number
+          functions_used?: number
+          id?: string
+          messages_used?: number
+          mood_logs_used?: number
+          reset_date?: string
+          symptom_logs_used?: number
+          tasks_used?: number
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       workflows: {
         Row: {
           bot_id: string

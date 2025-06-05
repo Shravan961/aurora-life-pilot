@@ -1,155 +1,140 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, Apple, Calendar, Heart, TrendingUp, Zap } from 'lucide-react';
-import { useLocalNutrition } from '@/hooks/useLocalNutrition';
-import { useLocalTasks } from '@/hooks/useLocalTasks';
-import { useLocalMood } from '@/hooks/useLocalMood';
-
-type ActiveTab = 'dashboard' | 'nutrition' | 'planner' | 'wellness' | 'chatbot';
+import { 
+  MessageSquare, 
+  Apple, 
+  Calendar, 
+  Heart, 
+  Brain,
+  Crown
+} from 'lucide-react';
+import { UsageDisplay } from '@/components/subscription/UsageDisplay';
+import { UpgradeModal } from '@/components/subscription/UpgradeModal';
 
 interface DashboardProps {
-  onNavigate: (tab: ActiveTab) => void;
+  onNavigate: (tab: 'nutrition' | 'planner' | 'wellness' | 'chatbot') => void;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
-  const { getTodaysCalories } = useLocalNutrition();
-  const { getTodaysCompletedCount, getTodaysTotalCount } = useLocalTasks();
-  const { getTodaysMoodScore } = useLocalMood();
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
-  const todaysCalories = getTodaysCalories();
-  const completedTasks = getTodaysCompletedCount();
-  const totalTasks = getTodaysTotalCount();
-  const moodScore = getTodaysMoodScore();
-
-  const quickActions = [
+  const features = [
     {
-      id: 'nutrition',
-      title: 'Log Meal',
-      description: 'Track your nutrition',
+      title: 'AI Chatbot',
+      description: 'Chat with Aurora, your personal AI assistant',
+      icon: MessageSquare,
+      onClick: () => onNavigate('chatbot'),
+      gradient: 'from-blue-500 to-purple-600'
+    },
+    {
+      title: 'Nutrition Tracker',
+      description: 'Log your meals and track nutritional intake',
       icon: Apple,
-      color: 'from-green-500 to-emerald-600',
+      onClick: () => onNavigate('nutrition'),
+      gradient: 'from-green-500 to-emerald-600'
     },
     {
-      id: 'planner',
-      title: 'Add Task',
-      description: 'Plan your day',
+      title: 'Daily Planner',
+      description: 'Organize your tasks and schedule',
       icon: Calendar,
-      color: 'from-blue-500 to-indigo-600',
+      onClick: () => onNavigate('planner'),
+      gradient: 'from-orange-500 to-red-600'
     },
     {
-      id: 'wellness',
-      title: 'Mood Check',
-      description: 'Track wellbeing',
+      title: 'Wellness Dashboard',
+      description: 'Monitor your mood and symptoms',
       icon: Heart,
-      color: 'from-pink-500 to-rose-600',
-    },
-  ];
-
-  const stats = [
-    { 
-      label: 'Today\'s Calories', 
-      value: todaysCalories > 0 ? todaysCalories.toString() : '0', 
-      trend: todaysCalories > 0 ? '+' + todaysCalories : '—', 
-      icon: TrendingUp 
-    },
-    { 
-      label: 'Tasks Completed', 
-      value: `${completedTasks}/${totalTasks}`, 
-      trend: totalTasks > 0 ? `${Math.round((completedTasks / totalTasks) * 100)}%` : '—', 
-      icon: Zap 
-    },
-    { 
-      label: 'Mood Score', 
-      value: moodScore !== null ? `${moodScore}/10` : '—', 
-      trend: moodScore !== null ? (moodScore >= 7 ? 'Good' : moodScore >= 4 ? 'Fair' : 'Low') : 'No data', 
-      icon: Heart 
-    },
+      onClick: () => onNavigate('wellness'),
+      gradient: 'from-pink-500 to-rose-600'
+    }
   ];
 
   return (
     <div className="space-y-6">
       {/* Welcome Section */}
-      <div className="text-center py-8">
-        <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-          Welcome to Aurafy
-        </h2>
-        <p className="text-lg text-gray-600 dark:text-gray-300">
-          Your AI Life Co-Pilot is ready to help
-        </p>
+      <div className="text-center space-y-4">
+        <div className="flex items-center justify-center space-x-3">
+          <div className="w-12 h-12 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center">
+            <Brain className="h-6 w-6 text-white" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+              Welcome to Aurafy
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400">Your personal AI-powered wellness companion</p>
+          </div>
+        </div>
       </div>
 
-      {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {stats.map((stat, index) => {
-          const Icon = stat.icon;
+      {/* Usage Display */}
+      <UsageDisplay onUpgradeClick={() => setShowUpgradeModal(true)} />
+
+      {/* Feature Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {features.map((feature, index) => {
+          const Icon = feature.icon;
           return (
-            <Card key={index} className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">{stat.label}</p>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{stat.value}</p>
-                    <p className="text-sm text-green-600 dark:text-green-400">{stat.trend}</p>
+            <Card 
+              key={index} 
+              className="group hover:shadow-lg transition-all duration-300 cursor-pointer transform hover:-translate-y-1"
+              onClick={feature.onClick}
+            >
+              <CardHeader className="pb-3">
+                <div className="flex items-center space-x-3">
+                  <div className={`w-10 h-10 bg-gradient-to-r ${feature.gradient} rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                    <Icon className="h-5 w-5 text-white" />
                   </div>
-                  <Icon className="h-8 w-8 text-indigo-600 dark:text-indigo-400" />
+                  <div>
+                    <CardTitle className="text-lg">{feature.title}</CardTitle>
+                  </div>
                 </div>
+              </CardHeader>
+              <CardContent>
+                <CardDescription className="text-base">
+                  {feature.description}
+                </CardDescription>
               </CardContent>
             </Card>
           );
         })}
       </div>
 
-      {/* Quick Actions */}
-      <div className="space-y-4">
-        <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Quick Actions</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {quickActions.map((action) => {
-            const Icon = action.icon;
-            return (
-              <Button
-                key={action.id}
-                variant="outline"
-                className="h-auto p-0 overflow-hidden group hover:scale-105 transition-transform"
-                onClick={() => onNavigate(action.id as ActiveTab)}
-              >
-                <div className="w-full p-6 text-left">
-                  <div className={`inline-flex p-3 rounded-lg bg-gradient-to-r ${action.color} mb-3`}>
-                    <Icon className="h-6 w-6 text-white" />
-                  </div>
-                  <h4 className="font-semibold text-gray-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
-                    {action.title}
-                  </h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                    {action.description}
-                  </p>
-                </div>
-              </Button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* AI Assistant Prompt */}
-      <Card className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white">
-        <CardContent className="p-6">
-          <div className="flex items-center space-x-4">
-            <MessageSquare className="h-8 w-8" />
-            <div>
-              <h3 className="font-semibold">Need help with anything?</h3>
-              <p className="text-indigo-100">Ask your AI assistant - I'm here to help!</p>
+      {/* Quick Stats */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Heart className="h-5 w-5 text-red-500" />
+            Quick Overview
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+            <div className="space-y-1">
+              <div className="text-2xl font-bold text-indigo-600">AI</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">Assistant</div>
             </div>
-            <Button 
-              variant="secondary" 
-              onClick={() => onNavigate('chatbot')}
-              className="ml-auto"
-            >
-              Chat Now
-            </Button>
+            <div className="space-y-1">
+              <div className="text-2xl font-bold text-green-600">Nutrition</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">Tracking</div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-2xl font-bold text-orange-600">Task</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">Planning</div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-2xl font-bold text-pink-600">Wellness</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">Monitoring</div>
+            </div>
           </div>
         </CardContent>
       </Card>
+
+      <UpgradeModal 
+        isOpen={showUpgradeModal} 
+        onClose={() => setShowUpgradeModal(false)} 
+      />
     </div>
   );
 };
