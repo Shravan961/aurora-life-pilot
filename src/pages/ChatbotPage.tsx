@@ -1,5 +1,5 @@
+
 import React, { useState, useRef, useEffect } from 'react';
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, Send, Wrench, Mic, MicOff, Trash2 } from 'lucide-react';
@@ -12,6 +12,7 @@ import { generateId, getTimestamp, formatTime } from '@/utils/helpers';
 import { ChatMessage } from '@/types';
 import { ToolkitModal } from '@/components/chat/ToolkitModal';
 import { ToolInterface } from '@/components/chat/ToolInterface';
+import { MessageActions } from '@/components/chat/MessageActions';
 import { supabaseChatService, SupabaseClone } from '@/services/supabaseChat';
 import { chatStorage } from '@/services/chatDatabase';
 import { toast } from "sonner";
@@ -223,6 +224,30 @@ export const ChatbotPage: React.FC<ChatbotPageProps> = ({ onNavigateBack }) => {
     return context;
   };
 
+  const handleEditMessage = async (messageId: string, newText: string) => {
+    try {
+      const updatedMessages = messages.map(msg => 
+        msg.id === messageId ? { ...msg, text: newText } : msg
+      );
+      setMessages(updatedMessages);
+      
+      // Update in storage
+      if (useSupabase) {
+        // Update in Supabase if needed
+      } else {
+        await chatStorage.clearMessages();
+        for (const message of updatedMessages) {
+          await chatStorage.addMessage(message);
+        }
+      }
+      
+      toast.success('Message updated');
+    } catch (error) {
+      console.error('Error updating message:', error);
+      toast.error('Failed to update message');
+    }
+  };
+
   const handleSendMessage = async () => {
     if (!input.trim() || isLoading) return;
 
@@ -332,31 +357,33 @@ export const ChatbotPage: React.FC<ChatbotPageProps> = ({ onNavigateBack }) => {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
-        <div className="flex items-center space-x-3">
-          <Button variant="ghost" size="sm" onClick={onNavigateBack}>
+    <div className="fixed inset-0 bg-white dark:bg-gray-900 flex flex-col">
+      {/* Minimal Header */}
+      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
+        <div className="flex items-center space-x-4">
+          <Button variant="ghost" size="sm" onClick={onNavigateBack} className="rounded-full">
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <div className="w-10 h-10 bg-gradient-to-r from-green-400 to-blue-500 rounded-full flex items-center justify-center">
-            <span className="text-white font-bold text-lg">A</span>
-          </div>
-          <div>
-            <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
-              {activeClone ? activeClone.name : 'Aurafy'}
-            </h1>
-            <p className="text-xs text-green-500">
-              Online {useSupabase ? '• Synced' : '• Local'}
-            </p>
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+              <span className="text-white font-semibold text-sm">A</span>
+            </div>
+            <div>
+              <h1 className="text-lg font-medium text-gray-900 dark:text-white">
+                {activeClone ? activeClone.name : 'Aurafy'}
+              </h1>
+              <p className="text-xs text-gray-500">
+                {useSupabase ? 'Synced' : 'Local'} • Online
+              </p>
+            </div>
           </div>
         </div>
         
         <div className="flex items-center space-x-2">
-          <Button variant="ghost" size="sm" onClick={clearChat}>
+          <Button variant="ghost" size="sm" onClick={clearChat} className="rounded-full">
             <Trash2 className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => setShowToolkit(true)}>
+          <Button variant="ghost" size="sm" onClick={() => setShowToolkit(true)} className="rounded-full">
             <Wrench className="h-5 w-5" />
           </Button>
         </div>
@@ -365,113 +392,121 @@ export const ChatbotPage: React.FC<ChatbotPageProps> = ({ onNavigateBack }) => {
       <div className="flex flex-1 overflow-hidden">
         {/* Chat Messages */}
         <div className="flex-1 flex flex-col">
-          <div className="flex-1 overflow-y-auto p-4 space-y-3" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"%3E%3Cg fill="none" fill-rule="evenodd"%3E%3Cg fill="%23f0f0f0" fill-opacity="0.1"%3E%3Ccircle cx="30" cy="30" r="2"/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")' }}>
-            {messages.length === 0 && (
-              <div className="text-center text-gray-500 dark:text-gray-400 mt-8">
-                <div className="w-20 h-20 bg-gradient-to-r from-green-400 to-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <span className="text-white font-bold text-2xl">A</span>
-                </div>
-                <h3 className="text-xl font-semibold mb-2 text-gray-700 dark:text-gray-300">Welcome to Aurafy!</h3>
-                <p className="text-gray-600 dark:text-gray-400">Your AI Life Co-Pilot is ready to help.</p>
-                <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">Ask me about nutrition, tasks, mood, or anything else!</p>
-              </div>
-            )}
-            
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'} mb-3`}
-              >
-                <div
-                  className={`max-w-xs lg:max-w-md px-4 py-3 rounded-2xl shadow-sm ${
-                    message.sender === 'user'
-                      ? 'bg-blue-500 text-white rounded-br-sm'
-                      : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-bl-sm border'
-                  }`}
-                >
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.text}</p>
-                  <p className={`text-xs mt-2 ${
-                    message.sender === 'user' 
-                      ? 'text-blue-100' 
-                      : 'text-gray-500 dark:text-gray-400'
-                  }`}>
-                    {formatTime(message.timestamp)}
+          <div className="flex-1 overflow-y-auto px-6 py-4">
+            <div className="max-w-4xl mx-auto space-y-6">
+              {messages.length === 0 && (
+                <div className="text-center py-16">
+                  <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <span className="text-white font-bold text-xl">A</span>
+                  </div>
+                  <h3 className="text-2xl font-medium mb-2 text-gray-900 dark:text-white">Welcome to Aurafy</h3>
+                  <p className="text-gray-600 dark:text-gray-400 max-w-md mx-auto">
+                    Your AI Life Co-Pilot is ready to help with nutrition, tasks, mood tracking, and more.
                   </p>
                 </div>
-              </div>
-            ))}
-            
-            {isLoading && (
-              <div className="flex justify-start mb-3">
-                <div className="bg-white dark:bg-gray-700 text-gray-900 dark:text-white max-w-xs lg:max-w-md px-4 py-3 rounded-2xl rounded-bl-sm shadow-sm border">
-                  <div className="flex items-center space-x-2">
-                    <div className="flex space-x-1">
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+              )}
+              
+              {messages.map((message) => (
+                <div
+                  key={message.id}
+                  className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`group max-w-3xl px-6 py-4 rounded-2xl ${
+                      message.sender === 'user'
+                        ? 'bg-blue-500 text-white ml-16'
+                        : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white mr-16'
+                    }`}
+                  >
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap mb-2">{message.text}</p>
+                    <div className="flex items-center justify-between">
+                      <p className={`text-xs ${
+                        message.sender === 'user' 
+                          ? 'text-blue-100' 
+                          : 'text-gray-500 dark:text-gray-400'
+                      }`}>
+                        {formatTime(message.timestamp)}
+                      </p>
+                      <MessageActions message={message} onEdit={handleEditMessage} />
                     </div>
-                    <span className="text-xs text-gray-500">
-                      {activeClone ? activeClone.name : 'Aurafy'} is typing...
-                    </span>
                   </div>
                 </div>
-              </div>
-            )}
-            
-            <div ref={messagesEndRef} />
+              ))}
+              
+              {isLoading && (
+                <div className="flex justify-start">
+                  <div className="bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white max-w-3xl px-6 py-4 rounded-2xl mr-16">
+                    <div className="flex items-center space-x-3">
+                      <div className="flex space-x-1">
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                      </div>
+                      <span className="text-sm text-gray-500">
+                        {activeClone ? activeClone.name : 'Aurafy'} is thinking...
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              <div ref={messagesEndRef} />
+            </div>
           </div>
 
           {/* Input Area */}
-          <div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
-            {isListening && (
-              <div className="mb-2 p-2 bg-red-50 dark:bg-red-900/20 rounded-lg text-center">
-                <p className="text-sm text-red-600 dark:text-red-400 flex items-center justify-center space-x-2">
-                  <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-                  <span>Listening... Speak now</span>
-                </p>
-              </div>
-            )}
-            
-            <div className="flex items-end space-x-2">
-              <div className="flex-1 relative">
-                <Textarea
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  placeholder="Type a message..."
-                  disabled={isLoading}
-                  rows={1}
-                  className="resize-none pr-20 rounded-3xl border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-                <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center space-x-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleVoiceInput}
-                    className={`${isListening ? 'text-red-500' : 'text-gray-400 hover:text-gray-600'} p-1`}
-                    disabled={isLoading}
-                  >
-                    {isListening ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowToolkit(true)}
-                    disabled={isLoading}
-                    className="text-gray-400 hover:text-gray-600 p-1"
-                  >
-                    <Wrench className="h-5 w-5" />
-                  </Button>
+          <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
+            <div className="max-w-4xl mx-auto">
+              {isListening && (
+                <div className="mb-3 p-3 bg-red-50 dark:bg-red-900/20 rounded-xl text-center">
+                  <p className="text-sm text-red-600 dark:text-red-400 flex items-center justify-center space-x-2">
+                    <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                    <span>Listening... Speak now</span>
+                  </p>
                 </div>
+              )}
+              
+              <div className="flex items-end space-x-3">
+                <div className="flex-1 relative">
+                  <Textarea
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyPress={handleKeyPress}
+                    placeholder="Type a message..."
+                    disabled={isLoading}
+                    rows={1}
+                    className="resize-none pr-24 rounded-2xl border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800"
+                  />
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center space-x-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleVoiceInput}
+                      className={`${isListening ? 'text-red-500' : 'text-gray-400 hover:text-gray-600'} p-1 rounded-full`}
+                      disabled={isLoading}
+                    >
+                      {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowToolkit(true)}
+                      disabled={isLoading}
+                      className="text-gray-400 hover:text-gray-600 p-1 rounded-full"
+                    >
+                      <Wrench className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                <Button
+                  onClick={handleSendMessage}
+                  disabled={!input.trim() || isLoading}
+                  className="rounded-full w-12 h-12 bg-blue-500 hover:bg-blue-600 text-white shadow-lg"
+                  size="sm"
+                >
+                  <Send className="h-5 w-5" />
+                </Button>
               </div>
-              <Button
-                onClick={handleSendMessage}
-                disabled={!input.trim() || isLoading}
-                className="rounded-full w-12 h-12 bg-blue-500 hover:bg-blue-600 text-white"
-                size="sm"
-              >
-                <Send className="h-5 w-5" />
-              </Button>
             </div>
           </div>
         </div>

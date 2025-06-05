@@ -1,15 +1,12 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { 
-  ArrowLeft, Plus, Minus, Move, Edit3, Save, Trash2, 
-  Maximize2, Minimize2, Download, Bot, Zap
-} from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { MindMapVisual } from '@/components/MindMapVisual';
+import { ArrowLeft, Save, Plus, Download, Upload } from 'lucide-react';
+import { mindMapStorage } from '@/services/mindMapStorage';
 import { memoryService } from '@/services/memoryService';
+import { toast } from "sonner";
 
 interface MindMapNode {
   id: string;
@@ -17,9 +14,6 @@ interface MindMapNode {
   level: number;
   children: MindMapNode[];
   color: string;
-  x: number;
-  y: number;
-  isEditing?: boolean;
 }
 
 interface InteractiveMindMapPageProps {
@@ -28,358 +22,182 @@ interface InteractiveMindMapPageProps {
   initialNodes?: MindMapNode[];
 }
 
-export const InteractiveMindMapPage: React.FC<InteractiveMindMapPageProps> = ({ 
-  onNavigateBack, 
+export const InteractiveMindMapPage: React.FC<InteractiveMindMapPageProps> = ({
+  onNavigateBack,
   initialTopic,
-  initialNodes 
+  initialNodes
 }) => {
-  const [topic, setTopic] = useState(initialTopic || 'My Mind Map');
+  const [topic, setTopic] = useState(initialTopic || '');
   const [nodes, setNodes] = useState<MindMapNode[]>(initialNodes || []);
-  const [selectedNode, setSelectedNode] = useState<MindMapNode | null>(null);
-  const [isEditingTopic, setIsEditingTopic] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [zoom, setZoom] = useState(1);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const { toast } = useToast();
-
-  const colors = [
-    'bg-blue-100 text-blue-800 border-blue-300',
-    'bg-green-100 text-green-800 border-green-300',
-    'bg-purple-100 text-purple-800 border-purple-300',
-    'bg-orange-100 text-orange-800 border-orange-300',
-    'bg-pink-100 text-pink-800 border-pink-300',
-    'bg-yellow-100 text-yellow-800 border-yellow-300',
-    'bg-red-100 text-red-800 border-red-300',
-    'bg-indigo-100 text-indigo-800 border-indigo-300'
-  ];
+  const [isEditing, setIsEditing] = useState(false);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
   useEffect(() => {
-    drawMindMap();
-  }, [nodes, zoom, dragOffset]);
-
-  const drawMindMap = () => {
-    const canvas = canvasRef.current;
-    const container = containerRef.current;
-    if (!canvas || !container) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    // Set canvas size
-    const rect = container.getBoundingClientRect();
-    canvas.width = rect.width;
-    canvas.height = rect.height;
-
-    // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    // Apply zoom and drag transformations
-    ctx.save();
-    ctx.scale(zoom, zoom);
-    ctx.translate(dragOffset.x, dragOffset.y);
-
-    // Calculate positions if not set
-    if (nodes.length > 0 && (!nodes[0].x || !nodes[0].y)) {
-      positionNodes();
-    }
-
-    // Draw connections first
-    nodes.forEach(node => {
-      node.children.forEach(child => {
-        drawConnection(ctx, node.x, node.y, child.x, child.y);
-      });
-    });
-
-    // Draw nodes
-    drawCentralTopic(ctx, canvas.width / 2 / zoom - dragOffset.x, canvas.height / 2 / zoom - dragOffset.y);
-    nodes.forEach(node => drawNode(ctx, node));
-    nodes.forEach(node => node.children.forEach(child => drawNode(ctx, child, true)));
-
-    ctx.restore();
-  };
-
-  const positionNodes = () => {
-    const centerX = (canvasRef.current?.width || 800) / 2;
-    const centerY = (canvasRef.current?.height || 600) / 2;
-    const radius = 200;
-
-    const updatedNodes = nodes.map((node, index) => {
-      const angle = (index * 2 * Math.PI) / nodes.length - Math.PI / 2;
-      const x = centerX + Math.cos(angle) * radius;
-      const y = centerY + Math.sin(angle) * radius;
-      
-      const updatedChildren = node.children.map((child, childIndex) => {
-        const childAngle = angle + (childIndex - (node.children.length - 1) / 2) * 0.4;
-        const childRadius = 120;
-        return {
-          ...child,
-          x: x + Math.cos(childAngle) * childRadius,
-          y: y + Math.sin(childAngle) * childRadius
-        };
-      });
-
-      return { ...node, x, y, children: updatedChildren };
-    });
-
-    setNodes(updatedNodes);
-  };
-
-  const drawConnection = (ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number) => {
-    ctx.strokeStyle = '#cbd5e1';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([]);
-
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    
-    const midX = (x1 + x2) / 2;
-    const midY = (y1 + y2) / 2;
-    const controlX = midX + (y2 - y1) * 0.1;
-    const controlY = midY - (x2 - x1) * 0.1;
-    
-    ctx.quadraticCurveTo(controlX, controlY, x2, y2);
-    ctx.stroke();
-
-    // Draw arrowhead
-    const angle = Math.atan2(y2 - controlY, x2 - controlX);
-    const arrowLength = 8;
-    ctx.beginPath();
-    ctx.moveTo(x2, y2);
-    ctx.lineTo(x2 - arrowLength * Math.cos(angle - Math.PI / 6), y2 - arrowLength * Math.sin(angle - Math.PI / 6));
-    ctx.lineTo(x2 - arrowLength * Math.cos(angle + Math.PI / 6), y2 - arrowLength * Math.sin(angle + Math.PI / 6));
-    ctx.fillStyle = '#cbd5e1';
-    ctx.fill();
-  };
-
-  const drawCentralTopic = (ctx: CanvasRenderingContext2D, x: number, y: number) => {
-    // Draw cloud shape for central topic
-    ctx.fillStyle = '#3b82f6';
-    ctx.strokeStyle = '#1e40af';
-    ctx.lineWidth = 3;
-    
-    const radius = 80;
-    ctx.beginPath();
-    // Create cloud-like shape with multiple circles
-    ctx.arc(x - radius * 0.3, y - radius * 0.2, radius * 0.4, 0, 2 * Math.PI);
-    ctx.arc(x + radius * 0.3, y - radius * 0.2, radius * 0.4, 0, 2 * Math.PI);
-    ctx.arc(x - radius * 0.2, y + radius * 0.1, radius * 0.3, 0, 2 * Math.PI);
-    ctx.arc(x + radius * 0.2, y + radius * 0.1, radius * 0.3, 0, 2 * Math.PI);
-    ctx.arc(x, y, radius * 0.5, 0, 2 * Math.PI);
-    ctx.fill();
-    ctx.stroke();
-
-    // Draw topic text
-    ctx.fillStyle = 'white';
-    ctx.font = 'bold 16px Arial';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(topic, x, y);
-  };
-
-  const drawNode = (ctx: CanvasRenderingContext2D, node: MindMapNode, isChild: boolean = false) => {
-    const radius = isChild ? 35 : 50;
-    
-    // Determine color
-    const colorClass = node.color || colors[0];
-    let fillColor = '#3b82f6';
-    if (colorClass.includes('green')) fillColor = '#10b981';
-    else if (colorClass.includes('purple')) fillColor = '#8b5cf6';
-    else if (colorClass.includes('orange')) fillColor = '#f59e0b';
-    else if (colorClass.includes('pink')) fillColor = '#ec4899';
-    else if (colorClass.includes('yellow')) fillColor = '#eab308';
-    else if (colorClass.includes('red')) fillColor = '#ef4444';
-    else if (colorClass.includes('indigo')) fillColor = '#6366f1';
-
-    // Draw cloud shape
-    ctx.fillStyle = selectedNode?.id === node.id ? '#fbbf24' : fillColor;
-    ctx.strokeStyle = selectedNode?.id === node.id ? '#f59e0b' : '#e2e8f0';
-    ctx.lineWidth = 2;
-    
-    ctx.beginPath();
-    ctx.arc(node.x - radius * 0.3, node.y - radius * 0.2, radius * 0.4, 0, 2 * Math.PI);
-    ctx.arc(node.x + radius * 0.3, node.y - radius * 0.2, radius * 0.4, 0, 2 * Math.PI);
-    ctx.arc(node.x - radius * 0.2, node.y + radius * 0.1, radius * 0.3, 0, 2 * Math.PI);
-    ctx.arc(node.x + radius * 0.2, node.y + radius * 0.1, radius * 0.3, 0, 2 * Math.PI);
-    ctx.arc(node.x, node.y, radius * 0.5, 0, 2 * Math.PI);
-    ctx.fill();
-    ctx.stroke();
-
-    // Draw text
-    ctx.fillStyle = 'white';
-    ctx.font = `${isChild ? '12px' : '14px'} Arial`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    
-    // Wrap text if too long
-    const maxWidth = radius * 1.5;
-    const words = node.text.split(' ');
-    let line = '';
-    let y = node.y;
-    
-    if (words.length > 1) {
-      const lines = [];
-      for (const word of words) {
-        const testLine = line + (line ? ' ' : '') + word;
-        const metrics = ctx.measureText(testLine);
-        if (metrics.width > maxWidth && line) {
-          lines.push(line);
-          line = word;
-        } else {
-          line = testLine;
+    // Load from localStorage if no initial data
+    if (!initialTopic && !initialNodes) {
+      const stored = localStorage.getItem('currentMindMap');
+      if (stored) {
+        try {
+          const data = JSON.parse(stored);
+          setTopic(data.topic || '');
+          setNodes(data.nodes || []);
+        } catch (error) {
+          console.error('Error loading mind map data:', error);
         }
       }
-      lines.push(line);
-      
-      const lineHeight = isChild ? 14 : 16;
-      y = node.y - ((lines.length - 1) * lineHeight) / 2;
-      
-      lines.forEach((textLine, index) => {
-        ctx.fillText(textLine, node.x, y + index * lineHeight);
-      });
-    } else {
-      ctx.fillText(node.text, node.x, y);
     }
-  };
+  }, [initialTopic, initialNodes]);
 
-  const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const x = (event.clientX - rect.left) / zoom - dragOffset.x;
-    const y = (event.clientY - rect.top) / zoom - dragOffset.y;
-
-    // Check central topic
-    const centerX = canvas.width / 2 / zoom - dragOffset.x;
-    const centerY = canvas.height / 2 / zoom - dragOffset.y;
-    const centerDistance = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
-    
-    if (centerDistance < 80) {
-      setIsEditingTopic(true);
+  const saveMindMap = () => {
+    if (!topic.trim()) {
+      toast.error('Please enter a topic name');
       return;
     }
 
-    // Check nodes
-    const allNodes = [...nodes, ...nodes.flatMap(n => n.children)];
-    let clicked = false;
-    
-    for (const node of allNodes) {
-      if (node.x && node.y) {
-        const distance = Math.sqrt((x - node.x) ** 2 + (y - node.y) ** 2);
-        if (distance < 50) {
-          setSelectedNode(selectedNode?.id === node.id ? null : node);
-          clicked = true;
-          break;
-        }
-      }
-    }
+    try {
+      mindMapStorage.saveMindMap(topic, nodes);
+      
+      // Save to memory
+      memoryService.addMemory({
+        type: 'mind_map',
+        title: `Mind Map Saved: ${topic}`,
+        content: `Interactive mind map with ${nodes.length} main topics and ${nodes.reduce((sum, node) => sum + node.children.length, 0)} subtopics`,
+        metadata: { mindMapTopic: topic }
+      });
 
-    if (!clicked) {
-      setSelectedNode(null);
+      toast.success('Mind map saved successfully!');
+    } catch (error) {
+      console.error('Error saving mind map:', error);
+      toast.error('Failed to save mind map');
     }
   };
 
-  const addMainNode = () => {
+  const addNewNode = () => {
+    const colors = [
+      'bg-blue-100 text-blue-800',
+      'bg-green-100 text-green-800',
+      'bg-purple-100 text-purple-800',
+      'bg-orange-100 text-orange-800',
+      'bg-pink-100 text-pink-800',
+      'bg-yellow-100 text-yellow-800',
+      'bg-red-100 text-red-800',
+      'bg-indigo-100 text-indigo-800'
+    ];
+
     const newNode: MindMapNode = {
       id: `node_${Date.now()}`,
       text: 'New Topic',
       level: 1,
-      children: [],
       color: colors[nodes.length % colors.length],
-      x: 0,
-      y: 0,
-      isEditing: true
-    };
-    
-    setNodes([...nodes, newNode]);
-    setSelectedNode(newNode);
-    toast({ title: "Node Added", description: "New main topic added to mind map" });
-  };
-
-  const addChildNode = () => {
-    if (!selectedNode || selectedNode.level !== 1) {
-      toast({ title: "Select Main Node", description: "Please select a main topic to add a subtopic" });
-      return;
-    }
-
-    const newChild: MindMapNode = {
-      id: `child_${Date.now()}`,
-      text: 'New Subtopic',
-      level: 2,
-      children: [],
-      color: selectedNode.color,
-      x: 0,
-      y: 0,
-      isEditing: true
+      children: []
     };
 
-    setNodes(prevNodes => 
-      prevNodes.map(node => 
-        node.id === selectedNode.id 
-          ? { ...node, children: [...node.children, newChild] }
-          : node
-      )
-    );
+    setNodes(prev => [...prev, newNode]);
+    setSelectedNodeId(newNode.id);
+    setIsEditing(true);
     
-    setSelectedNode(newChild);
-    toast({ title: "Subtopic Added", description: "New subtopic added to selected node" });
-  };
-
-  const deleteNode = () => {
-    if (!selectedNode) return;
-
-    if (selectedNode.level === 1) {
-      setNodes(prevNodes => prevNodes.filter(node => node.id !== selectedNode.id));
-    } else {
-      setNodes(prevNodes => 
-        prevNodes.map(node => ({
-          ...node,
-          children: node.children.filter(child => child.id !== selectedNode.id)
-        }))
-      );
-    }
-    
-    setSelectedNode(null);
-    toast({ title: "Node Deleted", description: "Selected node has been removed" });
+    toast.success('New node added! Click to edit.');
   };
 
   const updateNodeText = (nodeId: string, newText: string) => {
-    setNodes(prevNodes => 
-      prevNodes.map(node => {
-        if (node.id === nodeId) {
-          return { ...node, text: newText, isEditing: false };
-        }
-        return {
-          ...node,
-          children: node.children.map(child => 
-            child.id === nodeId 
-              ? { ...child, text: newText, isEditing: false }
-              : child
-          )
-        };
-      })
-    );
-  };
-
-  const saveMindMap = () => {
-    memoryService.addMemory({
-      type: 'mind_map',
-      title: `Mind Map: ${topic}`,
-      content: JSON.stringify({ topic, nodes }),
-      metadata: { 
-        mindMapTopic: topic,
-        nodeCount: nodes.length + nodes.reduce((sum, node) => sum + node.children.length, 0)
+    setNodes(prev => prev.map(node => {
+      if (node.id === nodeId) {
+        return { ...node, text: newText };
       }
-    });
-    
-    toast({ title: "Mind Map Saved", description: "Your mind map has been saved to memory" });
+      return {
+        ...node,
+        children: node.children.map(child => 
+          child.id === nodeId ? { ...child, text: newText } : child
+        )
+      };
+    }));
   };
 
-  const createBotFromNode = (node: MindMapNode) => {
+  const addChildNode = (parentNodeId: string) => {
+    const parentNode = nodes.find(n => n.id === parentNodeId);
+    if (!parentNode) return;
+
+    const newChild: MindMapNode = {
+      id: `node_${Date.now()}`,
+      text: 'New Subtopic',
+      level: 2,
+      color: parentNode.color,
+      children: []
+    };
+
+    setNodes(prev => prev.map(node => 
+      node.id === parentNodeId 
+        ? { ...node, children: [...node.children, newChild] }
+        : node
+    ));
+
+    toast.success('Subtopic added!');
+  };
+
+  const deleteNode = (nodeId: string) => {
+    setNodes(prev => {
+      // Remove main node
+      const filtered = prev.filter(node => node.id !== nodeId);
+      
+      // Remove child nodes
+      return filtered.map(node => ({
+        ...node,
+        children: node.children.filter(child => child.id !== nodeId)
+      }));
+    });
+
+    if (selectedNodeId === nodeId) {
+      setSelectedNodeId(null);
+      setIsEditing(false);
+    }
+
+    toast.success('Node deleted');
+  };
+
+  const exportMindMap = () => {
+    const data = {
+      topic,
+      nodes,
+      exportedAt: new Date().toISOString(),
+      version: '1.0'
+    };
+
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${topic.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_mindmap.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    toast.success('Mind map exported!');
+  };
+
+  const importMindMap = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = JSON.parse(e.target?.result as string);
+        if (data.topic && data.nodes) {
+          setTopic(data.topic);
+          setNodes(data.nodes);
+          toast.success('Mind map imported successfully!');
+        } else {
+          toast.error('Invalid mind map file format');
+        }
+      } catch (error) {
+        toast.error('Failed to import mind map');
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const createBotForNode = (node: MindMapNode) => {
     const botPrompt = `You are an AI expert specialized in "${node.text}". Your role is to provide detailed, practical, and actionable advice about this topic. You have deep knowledge about:
 
 ${node.children.map(child => `- ${child.text}`).join('\n')}
@@ -392,6 +210,7 @@ When users ask questions, provide comprehensive answers that are:
 
 Your personality is helpful, knowledgeable, and encouraging. You break down complex concepts into understandable steps.`;
 
+    // Save the bot configuration
     const botConfig = {
       id: `bot_${Date.now()}`,
       name: `${node.text} Expert`,
@@ -405,6 +224,7 @@ Your personality is helpful, knowledgeable, and encouraging. You break down comp
     existingBots.push(botConfig);
     localStorage.setItem('botPersonas', JSON.stringify(existingBots));
 
+    // Save to memory
     memoryService.addMemory({
       type: 'bot_interaction',
       title: `AI Bot Created: ${node.text} Expert`,
@@ -412,230 +232,87 @@ Your personality is helpful, knowledgeable, and encouraging. You break down comp
       metadata: { botName: `${node.text} Expert`, botTopic: node.text }
     });
 
-    toast({
-      title: "Bot Created",
-      description: `${node.text} Expert bot has been created and saved!`
-    });
-  };
-
-  // Handle mouse events for panning
-  const handleMouseDown = (event: React.MouseEvent) => {
-    if (event.button === 0) { // Left click
-      setIsDragging(true);
-      setDragStart({ x: event.clientX - dragOffset.x, y: event.clientY - dragOffset.y });
-    }
-  };
-
-  const handleMouseMove = (event: React.MouseEvent) => {
-    if (isDragging) {
-      setDragOffset({
-        x: event.clientX - dragStart.x,
-        y: event.clientY - dragStart.y
-      });
-    }
-  };
-
-  const handleMouseUp = () => {
-    setIsDragging(false);
+    toast.success(`${node.text} Expert bot created and saved!`);
   };
 
   return (
-    <div className={`flex flex-col h-screen bg-gray-50 ${isFullscreen ? 'fixed inset-0 z-50' : ''}`}>
+    <div className="fixed inset-0 bg-white dark:bg-gray-900 flex flex-col z-50">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 bg-white border-b border-gray-200 shadow-sm">
-        <div className="flex items-center space-x-3">
-          <Button variant="ghost" size="sm" onClick={onNavigateBack}>
+      <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm">
+        <div className="flex items-center space-x-4">
+          <Button variant="ghost" size="sm" onClick={onNavigateBack} className="rounded-full">
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <div className="flex items-center space-x-2">
-            {isEditingTopic ? (
-              <Input
-                value={topic}
-                onChange={(e) => setTopic(e.target.value)}
-                onBlur={() => setIsEditingTopic(false)}
-                onKeyPress={(e) => e.key === 'Enter' && setIsEditingTopic(false)}
-                className="text-lg font-semibold"
-                autoFocus
-              />
-            ) : (
-              <h1 
-                className="text-lg font-semibold text-gray-900 cursor-pointer hover:text-blue-600"
-                onClick={() => setIsEditingTopic(true)}
-              >
-                {topic}
-              </h1>
-            )}
-            <Button variant="ghost" size="sm" onClick={() => setIsEditingTopic(true)}>
-              <Edit3 className="h-4 w-4" />
-            </Button>
+          <div className="flex items-center space-x-3">
+            <Input
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+              placeholder="Mind Map Topic"
+              className="text-lg font-semibold border-none bg-transparent focus:ring-0 px-0"
+            />
           </div>
         </div>
         
         <div className="flex items-center space-x-2">
-          <Button variant="outline" size="sm" onClick={() => setZoom(Math.max(0.5, zoom - 0.1))}>
-            <Minus className="h-4 w-4" />
+          <input
+            type="file"
+            accept=".json"
+            onChange={importMindMap}
+            className="hidden"
+            id="import-mindmap"
+          />
+          <Button variant="ghost" size="sm" asChild className="rounded-full">
+            <label htmlFor="import-mindmap" className="cursor-pointer">
+              <Upload className="h-4 w-4" />
+            </label>
           </Button>
-          <span className="text-sm text-gray-600">{Math.round(zoom * 100)}%</span>
-          <Button variant="outline" size="sm" onClick={() => setZoom(Math.min(2, zoom + 0.1))}>
+          <Button variant="ghost" size="sm" onClick={exportMindMap} className="rounded-full">
+            <Download className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={addNewNode} className="rounded-full">
             <Plus className="h-4 w-4" />
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setIsFullscreen(!isFullscreen)}>
-            {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-          </Button>
-          <Button variant="outline" size="sm" onClick={saveMindMap}>
-            <Save className="h-4 w-4" />
+          <Button variant="outline" size="sm" onClick={saveMindMap} className="rounded-full">
+            <Save className="h-4 w-4 mr-2" />
+            Save
           </Button>
         </div>
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
-        {/* Main Canvas Area */}
-        <div className="flex-1 relative" ref={containerRef}>
-          <canvas
-            ref={canvasRef}
-            className="w-full h-full cursor-move bg-gradient-to-br from-blue-50 to-purple-50"
-            onClick={handleCanvasClick}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
+      {/* Mind Map Canvas */}
+      <div className="flex-1 relative bg-gradient-to-br from-blue-50 to-purple-50 dark:from-gray-800 dark:to-gray-900">
+        {topic && nodes.length > 0 ? (
+          <MindMapVisual
+            topic={topic}
+            nodes={nodes}
+            onCreateBot={createBotForNode}
           />
-          
-          {/* Zoom Controls */}
-          <div className="absolute top-4 right-4 flex flex-col gap-2">
-            <Button variant="outline" size="sm" onClick={() => setZoom(1)}>
-              Reset View
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setDragOffset({ x: 0, y: 0 })}>
-              <Move className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-
-        {/* Right Panel - Node Controls */}
-        <div className="w-80 bg-white border-l border-gray-200 p-4 space-y-4 overflow-y-auto">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Mind Map Controls</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <Button onClick={addMainNode} className="w-full">
-                <Plus className="h-4 w-4 mr-2" />
-                Add Main Topic
-              </Button>
-              <Button onClick={addChildNode} className="w-full" variant="outline" disabled={!selectedNode || selectedNode.level !== 1}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Subtopic
-              </Button>
-              <Button onClick={deleteNode} className="w-full" variant="destructive" disabled={!selectedNode}>
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete Selected
-              </Button>
-            </CardContent>
-          </Card>
-
-          {selectedNode && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm flex items-center justify-between">
-                  Selected Node
-                  <Badge className={selectedNode.color}>
-                    {selectedNode.level === 1 ? 'Main' : 'Sub'}
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div>
-                  <label className="text-sm font-medium">Text:</label>
-                  <Input
-                    value={selectedNode.text}
-                    onChange={(e) => updateNodeText(selectedNode.id, e.target.value)}
-                    className="mt-1"
-                  />
-                </div>
-                
-                <div>
-                  <label className="text-sm font-medium">Color:</label>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {colors.map((color, index) => (
-                      <button
-                        key={index}
-                        className={`w-6 h-6 rounded-full border-2 ${color} ${
-                          selectedNode.color === color ? 'ring-2 ring-gray-400' : ''
-                        }`}
-                        onClick={() => {
-                          setNodes(prevNodes => 
-                            prevNodes.map(node => {
-                              if (node.id === selectedNode.id) {
-                                return { ...node, color };
-                              }
-                              return {
-                                ...node,
-                                children: node.children.map(child => 
-                                  child.id === selectedNode.id ? { ...child, color } : child
-                                )
-                              };
-                            })
-                          );
-                          setSelectedNode({ ...selectedNode, color });
-                        }}
-                      />
-                    ))}
-                  </div>
-                </div>
-
-                {selectedNode.level === 1 && (
-                  <Button 
-                    onClick={() => createBotFromNode(selectedNode)}
-                    className="w-full"
-                    variant="outline"
-                  >
-                    <Bot className="h-4 w-4 mr-2" />
-                    Create AI Expert
-                  </Button>
-                )}
-
-                {selectedNode.children && selectedNode.children.length > 0 && (
-                  <div>
-                    <label className="text-sm font-medium">Subtopics ({selectedNode.children.length}):</label>
-                    <div className="space-y-1 mt-1">
-                      {selectedNode.children.map((child) => (
-                        <div key={child.id} className="text-xs p-2 bg-gray-50 rounded">
-                          {child.text}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Mind Map Stats</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span>Main Topics:</span>
-                  <Badge variant="secondary">{nodes.length}</Badge>
-                </div>
-                <div className="flex justify-between">
-                  <span>Subtopics:</span>
-                  <Badge variant="secondary">
-                    {nodes.reduce((sum, node) => sum + node.children.length, 0)}
-                  </Badge>
-                </div>
-                <div className="flex justify-between">
-                  <span>Total Nodes:</span>
-                  <Badge variant="secondary">
-                    {nodes.length + nodes.reduce((sum, node) => sum + node.children.length, 0)}
-                  </Badge>
-                </div>
+        ) : (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center text-gray-500 dark:text-gray-400">
+              <div className="w-24 h-24 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-white font-bold text-2xl">M</span>
               </div>
-            </CardContent>
-          </Card>
+              <h3 className="text-xl font-semibold mb-2">Interactive Mind Map Editor</h3>
+              <p className="mb-4">Create and edit your mind maps with full interactive capabilities</p>
+              <Button onClick={addNewNode} className="rounded-full">
+                <Plus className="h-4 w-4 mr-2" />
+                Add First Node
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Instructions */}
+      <div className="p-4 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm border-t border-gray-200 dark:border-gray-700">
+        <div className="text-center space-y-2">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            <strong>Interactive Controls:</strong> Click nodes to select • Double-click to edit • Right-click for options • Drag to rearrange
+          </p>
+          <p className="text-sm text-gray-500 dark:text-gray-500">
+            Use the toolbar above to add nodes, save your work, or export to JSON format
+          </p>
         </div>
       </div>
     </div>

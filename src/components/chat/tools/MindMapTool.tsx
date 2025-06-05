@@ -1,13 +1,14 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Map, Loader2, Brain, Bot, Maximize2 } from 'lucide-react';
+import { Map, Loader2, Brain, Bot, Maximize2, Clock, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { GROQ_API_KEY, GROQ_MODEL } from '@/utils/constants';
 import { MindMapVisual } from '@/components/MindMapVisual';
 import { memoryService } from '@/services/memoryService';
+import { mindMapStorage, SavedMindMap } from '@/services/mindMapStorage';
 
 interface MindMapToolProps {
   onSendToChat: (message: string) => void;
@@ -31,7 +32,8 @@ export const MindMapTool: React.FC<MindMapToolProps> = ({ onSendToChat }) => {
   const [topic, setTopic] = useState('');
   const [loading, setLoading] = useState(false);
   const [mindMap, setMindMap] = useState<GeneratedMindMap | null>(null);
-  const [showFullscreen, setShowFullscreen] = useState(false);
+  const [savedMindMaps, setSavedMindMaps] = useState<SavedMindMap[]>([]);
+  const [showSaved, setShowSaved] = useState(true);
   const { toast } = useToast();
 
   const colors = [
@@ -44,6 +46,15 @@ export const MindMapTool: React.FC<MindMapToolProps> = ({ onSendToChat }) => {
     'bg-red-100 text-red-800',
     'bg-indigo-100 text-indigo-800'
   ];
+
+  useEffect(() => {
+    loadSavedMindMaps();
+  }, []);
+
+  const loadSavedMindMaps = () => {
+    const maps = mindMapStorage.getAllMindMaps();
+    setSavedMindMaps(maps);
+  };
 
   const generateMindMap = async () => {
     if (!topic.trim()) {
@@ -143,6 +154,10 @@ Create 5-7 main subtopics and 4-6 details for each subtopic. Focus on comprehens
 
       setMindMap(generatedMap);
       
+      // Save to storage
+      mindMapStorage.saveMindMap(generatedMap.topic, generatedMap.nodes);
+      loadSavedMindMaps();
+      
       // Save to memory
       memoryService.addMemory({
         type: 'mind_map',
@@ -154,13 +169,13 @@ Create 5-7 main subtopics and 4-6 details for each subtopic. Focus on comprehens
       // Send to chat
       const mindMapText = `🧠 **Interactive Mind Map Created: ${generatedMap.topic}**\n\n${nodes.map(node => 
         `**${node.text}**\n${node.children.map(child => `  • ${child.text}`).join('\n')}`
-      ).join('\n\n')}\n\n*Use the visual mind map interface to explore and create AI bots for each topic!*`;
+      ).join('\n\n')}\n\n*Mind map saved! Click "Interactive View" to edit and explore.*`;
       
       onSendToChat(mindMapText);
       
       toast({
         title: "Success",
-        description: "Interactive mind map generated successfully!"
+        description: "Interactive mind map generated and saved!"
       });
 
     } catch (error) {
@@ -173,6 +188,24 @@ Create 5-7 main subtopics and 4-6 details for each subtopic. Focus on comprehens
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadSavedMindMap = (savedMap: SavedMindMap) => {
+    setMindMap({
+      topic: savedMap.topic,
+      nodes: savedMap.nodes,
+      createdAt: new Date(savedMap.createdAt)
+    });
+    setShowSaved(false);
+  };
+
+  const deleteSavedMindMap = (id: string) => {
+    mindMapStorage.deleteMindMap(id);
+    loadSavedMindMaps();
+    toast({
+      title: "Deleted",
+      description: "Mind map removed from saved collection"
+    });
   };
 
   const createBotForNode = (node: MindMapNode) => {
@@ -222,19 +255,12 @@ Your personality is helpful, knowledgeable, and encouraging. You break down comp
     if (!mindMap) {
       toast({
         title: "No Mind Map",
-        description: "Please generate a mind map first",
+        description: "Please generate or select a mind map first",
         variant: "destructive"
       });
       return;
     }
 
-    // This would open the interactive mind map page
-    // For now, we'll show a toast with instructions
-    toast({
-      title: "Interactive Mind Map",
-      description: "Opening interactive mind map editor...",
-    });
-    
     // Store mind map data for the interactive page
     localStorage.setItem('currentMindMap', JSON.stringify({
       topic: mindMap.topic,
@@ -245,6 +271,11 @@ Your personality is helpful, knowledgeable, and encouraging. You break down comp
     window.dispatchEvent(new CustomEvent('openInteractiveMindMap', {
       detail: { topic: mindMap.topic, nodes: mindMap.nodes }
     }));
+    
+    toast({
+      title: "Opening Interactive Editor",
+      description: "Launching full-screen mind map editor..."
+    });
   };
 
   return (
@@ -268,10 +299,12 @@ Your personality is helpful, knowledgeable, and encouraging. You break down comp
             onChange={(e) => setTopic(e.target.value)}
             disabled={loading}
             onKeyPress={(e) => e.key === 'Enter' && !loading && generateMindMap()}
+            className="rounded-xl"
           />
           <Button 
             onClick={generateMindMap} 
             disabled={loading || !topic.trim()}
+            className="rounded-xl"
           >
             {loading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -284,17 +317,72 @@ Your personality is helpful, knowledgeable, and encouraging. You break down comp
           </Button>
         </div>
 
+        {/* Saved Mind Maps */}
+        {showSaved && savedMindMaps.length > 0 && (
+          <div className="space-y-3">
+            <h4 className="font-medium text-sm flex items-center gap-2">
+              <Clock className="h-4 w-4" />
+              Saved Mind Maps ({savedMindMaps.length})
+            </h4>
+            <div className="grid gap-2 max-h-40 overflow-y-auto">
+              {savedMindMaps.map((savedMap) => (
+                <div
+                  key={savedMap.id}
+                  className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm truncate">{savedMap.topic}</p>
+                    <p className="text-xs text-gray-500">
+                      {new Date(savedMap.createdAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => loadSavedMindMap(savedMap)}
+                      className="text-xs"
+                    >
+                      Open
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => deleteSavedMindMap(savedMap.id)}
+                      className="text-red-500 hover:text-red-700"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Mind Map Display */}
         {mindMap && (
           <div className="flex-1 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-lg">{mindMap.topic}</h3>
+              <div>
+                <h3 className="font-semibold text-lg">{mindMap.topic}</h3>
+                {showSaved && (
+                  <Button
+                    variant="link"
+                    size="sm"
+                    onClick={() => setShowSaved(false)}
+                    className="text-xs p-0 h-auto"
+                  >
+                    Hide saved maps
+                  </Button>
+                )}
+              </div>
               <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={openFullscreen}
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-2 rounded-xl"
                 >
                   <Maximize2 className="h-4 w-4" />
                   Interactive View
@@ -313,14 +401,14 @@ Your personality is helpful, knowledgeable, and encouraging. You break down comp
             />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+              <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
                 <p className="text-sm text-blue-800 dark:text-blue-200 flex items-center gap-2">
                   <Bot className="h-4 w-4" />
                   <strong>Interactive Features:</strong> Click on any node in the visual mind map to create a specialized AI expert bot for that topic!
                 </p>
               </div>
               
-              <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+              <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-xl">
                 <p className="text-sm text-green-800 dark:text-green-200 flex items-center gap-2">
                   <Maximize2 className="h-4 w-4" />
                   <strong>Full Editor:</strong> Click "Interactive View" to open the full mind map editor with editing capabilities!
@@ -330,7 +418,7 @@ Your personality is helpful, knowledgeable, and encouraging. You break down comp
           </div>
         )}
 
-        {!mindMap && (
+        {!mindMap && !showSaved && (
           <div className="flex-1 flex items-center justify-center text-center text-muted-foreground">
             <div>
               <Map className="h-12 w-12 mx-auto mb-4 opacity-50" />
