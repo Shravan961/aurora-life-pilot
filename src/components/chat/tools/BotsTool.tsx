@@ -1,18 +1,14 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Bot, Plus, Trash2, Play, Square, Edit } from 'lucide-react';
+import { Bot, Plus, Trash2, Edit3, Send, Maximize2, Minimize2, MessageSquare } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-
-interface BotsToolProps {
-  onSendToChat: (message: string) => void;
-}
+import { GROQ_API_KEY, GROQ_MODEL } from '@/utils/constants';
+import { memoryService } from '@/services/memoryService';
 
 interface BotPersona {
   id: string;
@@ -23,330 +19,500 @@ interface BotPersona {
   isActive: boolean;
 }
 
-export const BotsTool: React.FC<BotsToolProps> = ({ onSendToChat }) => {
+interface ChatMessage {
+  id: string;
+  text: string;
+  sender: 'user' | 'bot';
+  timestamp: number;
+}
+
+interface BotsToolProps {
+  onSendToChat: (message: string) => void;
+  onClose?: () => void;
+}
+
+export const BotsTool: React.FC<BotsToolProps> = ({ onSendToChat, onClose }) => {
   const [bots, setBots] = useState<BotPersona[]>([]);
-  const [newBotName, setNewBotName] = useState('');
-  const [newBotTopic, setNewBotTopic] = useState('');
-  const [newBotPrompt, setNewBotPrompt] = useState('');
-  const [editingBot, setEditingBot] = useState<BotPersona | null>(null);
+  const [selectedBot, setSelectedBot] = useState<BotPersona | null>(null);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+
+  const [newBot, setNewBot] = useState({
+    name: '',
+    topic: '',
+    systemPrompt: ''
+  });
 
   useEffect(() => {
     loadBots();
   }, []);
 
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages]);
+
   const loadBots = () => {
-    const stored = localStorage.getItem('botPersonas');
-    if (stored) {
-      const parsedBots = JSON.parse(stored).map((bot: any) => ({
-        ...bot,
-        createdAt: new Date(bot.createdAt)
-      }));
-      setBots(parsedBots);
+    try {
+      const stored = localStorage.getItem('botPersonas');
+      if (stored) {
+        setBots(JSON.parse(stored));
+      }
+    } catch (error) {
+      console.error('Error loading bots:', error);
     }
   };
 
   const saveBots = (updatedBots: BotPersona[]) => {
-    localStorage.setItem('botPersonas', JSON.stringify(updatedBots));
-    setBots(updatedBots);
+    try {
+      localStorage.setItem('botPersonas', JSON.stringify(updatedBots));
+      setBots(updatedBots);
+    } catch (error) {
+      console.error('Error saving bots:', error);
+    }
   };
 
   const createBot = () => {
-    if (!newBotName.trim() || !newBotTopic.trim()) {
+    if (!newBot.name.trim() || !newBot.topic.trim()) {
       toast({
         title: "Error",
-        description: "Please enter both name and topic for the bot",
+        description: "Please fill in bot name and topic",
         variant: "destructive"
       });
       return;
     }
 
-    const systemPrompt = newBotPrompt.trim() || `You are an AI assistant specialized in ${newBotTopic}. You provide helpful, accurate, and detailed information about this topic. Your responses are professional, friendly, and tailored to the user's level of understanding.`;
-
-    const newBot: BotPersona = {
+    const botPersona: BotPersona = {
       id: `bot_${Date.now()}`,
-      name: newBotName.trim(),
-      topic: newBotTopic.trim(),
-      systemPrompt,
+      name: newBot.name.trim(),
+      topic: newBot.topic.trim(),
+      systemPrompt: newBot.systemPrompt.trim() || `You are an AI assistant specialized in ${newBot.topic}. Provide helpful, accurate, and detailed responses about this topic.`,
       createdAt: new Date(),
       isActive: false
     };
 
-    const updatedBots = [...bots, newBot];
+    const updatedBots = [...bots, botPersona];
     saveBots(updatedBots);
 
-    setNewBotName('');
-    setNewBotTopic('');
-    setNewBotPrompt('');
+    // Save to memory
+    memoryService.addMemory({
+      type: 'bot_interaction',
+      title: `AI Bot Created: ${botPersona.name}`,
+      content: `Created new AI bot specialized in ${botPersona.topic}`,
+      metadata: { 
+        botName: botPersona.name, 
+        botTopic: botPersona.topic,
+        botCreation: true 
+      }
+    });
 
+    setNewBot({ name: '', topic: '', systemPrompt: '' });
+    setShowCreateForm(false);
     toast({
       title: "Success",
-      description: `Bot "${newBot.name}" created successfully!`
+      description: `Bot "${botPersona.name}" created successfully!`
     });
-
-    onSendToChat(`🤖 **New Bot Created**: "${newBot.name}"\n\nSpecialty: ${newBot.topic}\n\nThis bot is now available in your toolkit and ready to assist with ${newBot.topic}-related questions.`);
   };
 
-  const activateBot = (bot: BotPersona) => {
-    // Deactivate all other bots
-    const updatedBots = bots.map(b => ({
-      ...b,
-      isActive: b.id === bot.id
-    }));
+  const deleteBot = (botId: string) => {
+    const updatedBots = bots.filter(bot => bot.id !== botId);
+    saveBots(updatedBots);
     
-    saveBots(updatedBots);
-    localStorage.setItem('activeClone', JSON.stringify({
-      id: bot.id,
-      name: bot.name,
-      system_prompt: bot.systemPrompt,
-      is_active: true
-    }));
-
-    toast({
-      title: "Bot Activated",
-      description: `${bot.name} is now active in your chat`
-    });
-
-    onSendToChat(`🤖 **Bot Activated**: "${bot.name}" is now handling your conversations!\n\nI'm specialized in ${bot.topic} and ready to help. You can ask me to stop anytime by saying "stop" or "be normal again".`);
-  };
-
-  const deactivateBot = (bot: BotPersona) => {
-    const updatedBots = bots.map(b => ({
-      ...b,
-      isActive: false
-    }));
-    
-    saveBots(updatedBots);
-    localStorage.removeItem('activeClone');
-
-    toast({
-      title: "Bot Deactivated",
-      description: `${bot.name} has been deactivated`
-    });
-
-    onSendToChat(`🤖 **Bot Deactivated**: "${bot.name}" has been deactivated. I'm back to normal mode!`);
-  };
-
-  const deleteBot = (bot: BotPersona) => {
-    const updatedBots = bots.filter(b => b.id !== bot.id);
-    saveBots(updatedBots);
-
-    if (bot.isActive) {
-      localStorage.removeItem('activeClone');
+    if (selectedBot?.id === botId) {
+      setSelectedBot(null);
+      setChatMessages([]);
     }
-
+    
     toast({
       title: "Bot Deleted",
-      description: `${bot.name} has been deleted`
+      description: "Bot has been removed successfully"
     });
   };
 
-  const startEditing = (bot: BotPersona) => {
-    setEditingBot(bot);
-    setNewBotName(bot.name);
-    setNewBotTopic(bot.topic);
-    setNewBotPrompt(bot.systemPrompt);
+  const selectBot = (bot: BotPersona) => {
+    setSelectedBot(bot);
+    setChatMessages([]);
+    
+    // Load chat history for this bot
+    try {
+      const stored = localStorage.getItem(`bot_chat_${bot.id}`);
+      if (stored) {
+        setChatMessages(JSON.parse(stored));
+      }
+    } catch (error) {
+      console.error('Error loading bot chat history:', error);
+    }
   };
 
-  const saveEdit = () => {
-    if (!editingBot) return;
+  const saveChatHistory = (messages: ChatMessage[]) => {
+    if (selectedBot) {
+      try {
+        localStorage.setItem(`bot_chat_${selectedBot.id}`, JSON.stringify(messages));
+      } catch (error) {
+        console.error('Error saving chat history:', error);
+      }
+    }
+  };
 
-    const updatedBot = {
-      ...editingBot,
-      name: newBotName.trim(),
-      topic: newBotTopic.trim(),
-      systemPrompt: newBotPrompt.trim() || editingBot.systemPrompt
+  const sendMessage = async () => {
+    if (!input.trim() || !selectedBot || isLoading) return;
+
+    const userMessage: ChatMessage = {
+      id: `msg_${Date.now()}`,
+      text: input.trim(),
+      sender: 'user',
+      timestamp: Date.now()
     };
 
-    const updatedBots = bots.map(b => 
-      b.id === editingBot.id ? updatedBot : b
-    );
+    const newMessages = [...chatMessages, userMessage];
+    setChatMessages(newMessages);
+    saveChatHistory(newMessages);
 
-    saveBots(updatedBots);
+    const messageText = input.trim();
+    setInput('');
+    setIsLoading(true);
 
-    if (editingBot.isActive) {
-      localStorage.setItem('activeClone', JSON.stringify({
-        id: updatedBot.id,
-        name: updatedBot.name,
-        system_prompt: updatedBot.systemPrompt,
-        is_active: true
-      }));
+    try {
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${GROQ_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: GROQ_MODEL,
+          messages: [
+            {
+              role: 'system',
+              content: selectedBot.systemPrompt
+            },
+            ...newMessages.map(msg => ({
+              role: msg.sender === 'user' ? 'user' : 'assistant',
+              content: msg.text
+            }))
+          ],
+          temperature: 0.7,
+          max_tokens: 1000
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get bot response');
+      }
+
+      const data = await response.json();
+      const botResponse = data.choices[0]?.message?.content || 'I apologize, but I encountered an error.';
+
+      const botMessage: ChatMessage = {
+        id: `msg_${Date.now()}`,
+        text: botResponse,
+        sender: 'bot',
+        timestamp: Date.now()
+      };
+
+      const updatedMessages = [...newMessages, botMessage];
+      setChatMessages(updatedMessages);
+      saveChatHistory(updatedMessages);
+
+      // Save interaction to memory
+      memoryService.addMemory({
+        type: 'bot_interaction',
+        title: `Chat with ${selectedBot.name}`,
+        content: `User: ${messageText}\n\n${selectedBot.name}: ${botResponse}`,
+        metadata: { 
+          botName: selectedBot.name, 
+          botTopic: selectedBot.topic,
+          userMessage: messageText,
+          botResponse: botResponse
+        }
+      });
+
+    } catch (error) {
+      console.error('Bot response error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to get response from bot",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
     }
-
-    setEditingBot(null);
-    setNewBotName('');
-    setNewBotTopic('');
-    setNewBotPrompt('');
-
-    toast({
-      title: "Success",
-      description: `Bot "${updatedBot.name}" updated successfully!`
-    });
   };
 
-  const cancelEdit = () => {
-    setEditingBot(null);
-    setNewBotName('');
-    setNewBotTopic('');
-    setNewBotPrompt('');
-  };
+  if (isFullscreen) {
+    return (
+      <div className="fixed inset-0 z-50 bg-white flex flex-col">
+        {/* Fullscreen Header */}
+        <div className="flex items-center justify-between p-4 bg-white border-b border-gray-200">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-gradient-to-r from-purple-400 to-blue-500 rounded-full flex items-center justify-center">
+              <Bot className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <h1 className="text-lg font-semibold text-gray-900">
+                {selectedBot ? `Chat with ${selectedBot.name}` : 'AI Bots Manager'}
+              </h1>
+              {selectedBot && (
+                <p className="text-sm text-gray-500">Specialized in {selectedBot.topic}</p>
+              )}
+            </div>
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <Button variant="outline" size="sm" onClick={() => setIsFullscreen(false)}>
+              <Minimize2 className="h-4 w-4" />
+            </Button>
+            {onClose && (
+              <Button variant="outline" size="sm" onClick={onClose}>
+                Close
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Fullscreen Content */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* Bot List Sidebar */}
+          <div className="w-80 bg-gray-50 border-r border-gray-200 p-4 overflow-y-auto">
+            <div className="space-y-4">
+              <Button onClick={() => setShowCreateForm(true)} className="w-full">
+                <Plus className="h-4 w-4 mr-2" />
+                Create New Bot
+              </Button>
+
+              <div className="space-y-2">
+                {bots.map((bot) => (
+                  <Card 
+                    key={bot.id} 
+                    className={`cursor-pointer transition-colors ${
+                      selectedBot?.id === bot.id ? 'ring-2 ring-blue-500' : ''
+                    }`}
+                    onClick={() => selectBot(bot)}
+                  >
+                    <CardContent className="p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <h3 className="font-medium text-sm">{bot.name}</h3>
+                          <p className="text-xs text-gray-500">{bot.topic}</p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteBot(bot.id);
+                          }}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Chat Area */}
+          <div className="flex-1 flex flex-col">
+            {selectedBot ? (
+              <>
+                {/* Messages */}
+                <ScrollArea className="flex-1 p-4">
+                  <div className="space-y-4">
+                    {chatMessages.map((message) => (
+                      <div
+                        key={message.id}
+                        className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                      >
+                        <div
+                          className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                            message.sender === 'user'
+                              ? 'bg-blue-500 text-white'
+                              : 'bg-gray-200 text-gray-900'
+                          }`}
+                        >
+                          <p className="text-sm whitespace-pre-wrap">{message.text}</p>
+                        </div>
+                      </div>
+                    ))}
+                    {isLoading && (
+                      <div className="flex justify-start">
+                        <div className="bg-gray-200 text-gray-900 max-w-xs lg:max-w-md px-4 py-2 rounded-lg">
+                          <div className="flex items-center space-x-2">
+                            <div className="flex space-x-1">
+                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                            </div>
+                            <span className="text-xs">{selectedBot.name} is typing...</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    <div ref={messagesEndRef} />
+                  </div>
+                </ScrollArea>
+
+                {/* Input */}
+                <div className="p-4 border-t border-gray-200">
+                  <div className="flex space-x-2">
+                    <Input
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
+                      placeholder={`Chat with ${selectedBot.name}...`}
+                      disabled={isLoading}
+                      className="flex-1"
+                    />
+                    <Button onClick={sendMessage} disabled={!input.trim() || isLoading}>
+                      <Send className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="flex-1 flex items-center justify-center text-center text-gray-500">
+                <div>
+                  <Bot className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>Select a bot to start chatting</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Card className="w-full h-full flex flex-col">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Bot className="h-5 w-5" />
-          AI Bot Manager
-        </CardTitle>
-        <CardDescription>
-          Create, manage, and activate specialized AI personalities for different topics
-        </CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Bot className="h-5 w-5" />
+              AI Bots Manager
+            </CardTitle>
+            <CardDescription>
+              Create and chat with specialized AI assistants
+            </CardDescription>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => setIsFullscreen(true)}>
+            <Maximize2 className="h-4 w-4" />
+          </Button>
+        </div>
       </CardHeader>
       
-      <CardContent className="flex-1 flex flex-col space-y-4">
-        <Tabs defaultValue="bots" className="flex-1 flex flex-col">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="bots">My Bots ({bots.length})</TabsTrigger>
-            <TabsTrigger value="create">
-              {editingBot ? 'Edit Bot' : 'Create Bot'}
-            </TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="bots" className="flex-1 flex flex-col space-y-4">
-            {bots.length === 0 ? (
-              <div className="flex-1 flex items-center justify-center text-center text-muted-foreground">
-                <div>
-                  <Bot className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>No bots created yet</p>
-                  <p className="text-sm mt-2">Create your first AI bot to get started!</p>
-                </div>
-              </div>
-            ) : (
-              <ScrollArea className="flex-1">
-                <div className="space-y-3">
-                  {bots.map((bot) => (
-                    <div
-                      key={bot.id}
-                      className={`p-4 border rounded-lg ${
-                        bot.isActive ? 'bg-green-50 border-green-200' : 'bg-white'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h3 className="font-medium">{bot.name}</h3>
-                            {bot.isActive && (
-                              <Badge className="bg-green-500 text-white">Active</Badge>
-                            )}
-                          </div>
-                          <p className="text-sm text-muted-foreground mb-2">
-                            Topic: {bot.topic}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Created: {bot.createdAt.toLocaleDateString()}
-                          </p>
-                        </div>
-                        <div className="flex gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => startEditing(bot)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => bot.isActive ? deactivateBot(bot) : activateBot(bot)}
-                            className={bot.isActive ? 'text-red-600' : 'text-green-600'}
-                          >
-                            {bot.isActive ? <Square className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => deleteBot(bot)}
-                            className="text-red-600"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                      <div className="text-xs text-muted-foreground bg-gray-50 p-2 rounded max-h-20 overflow-y-auto">
-                        {bot.systemPrompt.substring(0, 150)}...
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            )}
-          </TabsContent>
-          
-          <TabsContent value="create" className="flex-1 flex flex-col space-y-4">
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium mb-2 block">Bot Name</label>
-                <Input
-                  placeholder="e.g., Fitness Coach, Marketing Expert"
-                  value={newBotName}
-                  onChange={(e) => setNewBotName(e.target.value)}
-                />
-              </div>
-              
-              <div>
-                <label className="text-sm font-medium mb-2 block">Specialty Topic</label>
-                <Input
-                  placeholder="e.g., Health & Fitness, Digital Marketing"
-                  value={newBotTopic}
-                  onChange={(e) => setNewBotTopic(e.target.value)}
-                />
-              </div>
-              
-              <div>
-                <label className="text-sm font-medium mb-2 block">
-                  Custom Instructions (Optional)
-                </label>
-                <Textarea
-                  placeholder="Describe the bot's personality, expertise, and how it should respond..."
-                  value={newBotPrompt}
-                  onChange={(e) => setNewBotPrompt(e.target.value)}
-                  className="min-h-32 resize-none"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Leave empty for a default personality based on the topic
-                </p>
-              </div>
-              
-              <div className="flex gap-2">
-                {editingBot ? (
-                  <>
-                    <Button onClick={saveEdit} className="flex-1">
-                      Save Changes
-                    </Button>
-                    <Button variant="outline" onClick={cancelEdit}>
-                      Cancel
-                    </Button>
-                  </>
-                ) : (
-                  <Button
-                    onClick={createBot}
-                    disabled={!newBotName.trim() || !newBotTopic.trim()}
-                    className="flex-1"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create Bot
-                  </Button>
-                )}
-              </div>
-            </div>
-          </TabsContent>
-        </Tabs>
+      <CardContent className="flex-1 flex flex-col space-y-4 overflow-hidden">
+        {!showCreateForm && (
+          <Button onClick={() => setShowCreateForm(true)} className="w-full">
+            <Plus className="h-4 w-4 mr-2" />
+            Create New Bot
+          </Button>
+        )}
 
-        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-          <p className="text-sm text-blue-800 dark:text-blue-200">
-            <strong>💡 Tip:</strong> Activate a bot to change your chat personality. Only one bot can be active at a time. Say "stop" in chat to deactivate.
-          </p>
-        </div>
+        {showCreateForm && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Create New Bot</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Input
+                placeholder="Bot Name (e.g., Study Buddy)"
+                value={newBot.name}
+                onChange={(e) => setNewBot({ ...newBot, name: e.target.value })}
+              />
+              <Input
+                placeholder="Specialization (e.g., Mathematics)"
+                value={newBot.topic}
+                onChange={(e) => setNewBot({ ...newBot, topic: e.target.value })}
+              />
+              <Textarea
+                placeholder="Custom system prompt (optional)"
+                value={newBot.systemPrompt}
+                onChange={(e) => setNewBot({ ...newBot, systemPrompt: e.target.value })}
+                rows={3}
+              />
+              <div className="flex space-x-2">
+                <Button onClick={createBot} className="flex-1">
+                  Create Bot
+                </Button>
+                <Button variant="outline" onClick={() => setShowCreateForm(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        <ScrollArea className="flex-1">
+          <div className="space-y-2">
+            {bots.map((bot) => (
+              <Card key={bot.id} className="cursor-pointer hover:bg-gray-50">
+                <CardContent className="p-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1" onClick={() => selectBot(bot)}>
+                      <div className="flex items-center space-x-2">
+                        <h3 className="font-medium text-sm">{bot.name}</h3>
+                        <Badge variant="secondary" className="text-xs">
+                          {bot.topic}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Created {new Date(bot.createdAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="flex space-x-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => selectBot(bot)}
+                      >
+                        <MessageSquare className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => deleteBot(bot.id)}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </ScrollArea>
+
+        {selectedBot && (
+          <div className="border-t pt-4">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="font-medium text-sm">Quick Chat with {selectedBot.name}</h4>
+              <Button variant="outline" size="sm" onClick={() => setIsFullscreen(true)}>
+                <Maximize2 className="h-3 w-3" />
+              </Button>
+            </div>
+            <div className="flex space-x-2">
+              <Input
+                placeholder={`Ask ${selectedBot.name} something...`}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                disabled={isLoading}
+                className="flex-1"
+              />
+              <Button onClick={sendMessage} size="sm" disabled={!input.trim() || isLoading}>
+                <Send className="h-3 w-3" />
+              </Button>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

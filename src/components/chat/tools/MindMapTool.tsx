@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Map, Loader2, Brain, Bot } from 'lucide-react';
+import { Map, Loader2, Brain, Bot, Maximize2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { GROQ_API_KEY, GROQ_MODEL } from '@/utils/constants';
 import { MindMapVisual } from '@/components/MindMapVisual';
@@ -31,6 +31,7 @@ export const MindMapTool: React.FC<MindMapToolProps> = ({ onSendToChat }) => {
   const [topic, setTopic] = useState('');
   const [loading, setLoading] = useState(false);
   const [mindMap, setMindMap] = useState<GeneratedMindMap | null>(null);
+  const [showFullscreen, setShowFullscreen] = useState(false);
   const { toast } = useToast();
 
   const colors = [
@@ -217,6 +218,35 @@ Your personality is helpful, knowledgeable, and encouraging. You break down comp
     onSendToChat(`🤖 **AI Expert Bot Created**: "${node.text} Expert"\n\nThis specialized bot is now available in your toolkit with deep knowledge about:\n${node.children.map(child => `• ${child.text}`).join('\n')}\n\n*The bot has been saved and can provide expert guidance on this topic anytime!*`);
   };
 
+  const openFullscreen = () => {
+    if (!mindMap) {
+      toast({
+        title: "No Mind Map",
+        description: "Please generate a mind map first",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // This would open the interactive mind map page
+    // For now, we'll show a toast with instructions
+    toast({
+      title: "Interactive Mind Map",
+      description: "Opening interactive mind map editor...",
+    });
+    
+    // Store mind map data for the interactive page
+    localStorage.setItem('currentMindMap', JSON.stringify({
+      topic: mindMap.topic,
+      nodes: mindMap.nodes
+    }));
+    
+    // Trigger navigation to interactive page
+    window.dispatchEvent(new CustomEvent('openInteractiveMindMap', {
+      detail: { topic: mindMap.topic, nodes: mindMap.nodes }
+    }));
+  };
+
   return (
     <Card className="w-full h-full flex flex-col">
       <CardHeader>
@@ -259,9 +289,20 @@ Your personality is helpful, knowledgeable, and encouraging. You break down comp
           <div className="flex-1 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-lg">{mindMap.topic}</h3>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Bot className="h-4 w-4" />
-                Click nodes to create AI experts
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={openFullscreen}
+                  className="flex items-center gap-2"
+                >
+                  <Maximize2 className="h-4 w-4" />
+                  Interactive View
+                </Button>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Bot className="h-4 w-4" />
+                  Click nodes to create AI experts
+                </div>
               </div>
             </div>
 
@@ -271,11 +312,20 @@ Your personality is helpful, knowledgeable, and encouraging. You break down comp
               onCreateBot={createBotForNode}
             />
 
-            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-              <p className="text-sm text-blue-800 dark:text-blue-200 flex items-center gap-2">
-                <Bot className="h-4 w-4" />
-                <strong>Interactive Features:</strong> Click on any node in the visual mind map to create a specialized AI expert bot for that topic!
-              </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                <p className="text-sm text-blue-800 dark:text-blue-200 flex items-center gap-2">
+                  <Bot className="h-4 w-4" />
+                  <strong>Interactive Features:</strong> Click on any node in the visual mind map to create a specialized AI expert bot for that topic!
+                </p>
+              </div>
+              
+              <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                <p className="text-sm text-green-800 dark:text-green-200 flex items-center gap-2">
+                  <Maximize2 className="h-4 w-4" />
+                  <strong>Full Editor:</strong> Click "Interactive View" to open the full mind map editor with editing capabilities!
+                </p>
+              </div>
             </div>
           </div>
         )}
