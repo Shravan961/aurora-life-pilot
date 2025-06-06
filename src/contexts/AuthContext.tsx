@@ -33,11 +33,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
-      
-      // Check subscription status when user logs in
-      if (session?.user) {
-        checkSubscriptionStatus();
-      }
     });
 
     // Listen for auth changes
@@ -46,24 +41,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
-        
-        // Check subscription status when user state changes
-        if (session?.user && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
-          checkSubscriptionStatus();
-        }
       }
     );
 
     return () => subscription.unsubscribe();
   }, []);
-
-  const checkSubscriptionStatus = async () => {
-    try {
-      await supabase.functions.invoke('check-subscription');
-    } catch (error) {
-      console.error('Error checking subscription status:', error);
-    }
-  };
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({

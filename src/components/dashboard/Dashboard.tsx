@@ -1,25 +1,19 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { 
   MessageSquare, 
   Apple, 
   Calendar, 
   Heart, 
-  Brain,
-  Crown
+  Brain
 } from 'lucide-react';
-import { UsageDisplay } from '@/components/subscription/UsageDisplay';
-import { UpgradeModal } from '@/components/subscription/UpgradeModal';
 
 interface DashboardProps {
   onNavigate: (tab: 'nutrition' | 'planner' | 'wellness' | 'chatbot') => void;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-
   const features = [
     {
       title: 'AI Chatbot',
@@ -67,9 +61,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           </div>
         </div>
       </div>
-
-      {/* Usage Display */}
-      <UsageDisplay onUpgradeClick={() => setShowUpgradeModal(true)} />
 
       {/* Feature Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -130,11 +121,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           </div>
         </CardContent>
       </Card>
-
-      <UpgradeModal 
-        isOpen={showUpgradeModal} 
-        onClose={() => setShowUpgradeModal(false)} 
-      />
     </div>
   );
 };
