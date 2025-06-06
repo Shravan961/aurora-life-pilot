@@ -3,7 +3,7 @@ export const GROQ_API_KEY = 'gsk_fSovozTazElzBgoA4Eb1WGdyb3FYTYWoujmuNLoWzfnnsI2
 export const COHERE_API_KEY = 'LVeqM6aavSJPysbxUdFdY3lgjWnit3d0LJvE9aAk';
 export const CALORIE_NINJAS_KEY = 'AGA1x8JS+nq9z3KduU+vrA==C3MXzxW2DQ54kmuT';
 export const HUGGING_FACE_API_KEY = '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';
-export const GEMINI_API_KEY = 'AIzaSyBuk1-nW6bw1pVgwwbZK-AQfCzCVgHT-R4';
+export const GEMINI_API_KEY = 'AIzaSyD-AQ42z440hcdVuUs5xI6Vn2YswKCszx0';
 
 // Groq model configuration
 export const GROQ_MODEL = 'llama-3.3-70b-versatile';

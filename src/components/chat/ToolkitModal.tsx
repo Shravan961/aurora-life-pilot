@@ -2,7 +2,7 @@
 import React from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { X, Search, FileText, Mic, Volume2, Zap, Calculator, Map, Users, Camera, Languages, Shield, Globe2, MessageCircle, Plus, Smile, GraduationCap, Youtube, Globe, Eye, MessageSquare, StickyNote, Palette, RotateCcw, Wand2, Sparkles, Bot, ShoppingCart, Calendar } from 'lucide-react';
+import { X, Search, FileText, Mic, Volume2, Zap, Calculator, Map, Users, Camera, Shield, Globe2, MessageCircle, Plus, Smile, GraduationCap, Youtube, Globe, Eye, MessageSquare, StickyNote, Palette, RotateCcw, Wand2, Sparkles, Bot, ShoppingCart } from 'lucide-react';
 
 interface ToolkitModalProps {
   isOpen: boolean;
@@ -39,9 +39,8 @@ export const ToolkitModal: React.FC<ToolkitModalProps> = ({ isOpen, onClose, onT
       ]
     },
     {
-      name: "📅 Productivity",
+      name: "📝 Productivity",
       tools: [
-        { id: 'calendar-planner', name: 'Calendar Planner', icon: Calendar, description: 'Visual calendar task management' },
         { id: 'memo', name: 'Memo', icon: StickyNote, description: 'Create quick notes' },
       ]
     },
@@ -56,7 +55,6 @@ export const ToolkitModal: React.FC<ToolkitModalProps> = ({ isOpen, onClose, onT
       name: "🧪 Analysis",
       tools: [
         { id: 'ai-detector', name: 'AI Detector', icon: Shield, description: 'Detect AI-generated text' },
-        { id: 'interpreting', name: 'Interpreting', icon: Eye, description: 'Analyze and interpret data' },
       ]
     },
     {
@@ -72,7 +70,7 @@ export const ToolkitModal: React.FC<ToolkitModalProps> = ({ isOpen, onClose, onT
         { id: 'voice', name: 'Voice', icon: Mic, description: 'Voice to text input' },
         { id: 'live-voice', name: 'Live Voice', icon: Volume2, description: 'Real-time voice chat' },
         { id: 'chat-pdf', name: 'ChatPDF', icon: FileText, description: 'Chat with PDF content' },
-        { id: 'pic-this', name: 'PicThis', icon: Camera, description: 'Analyze images' },
+        { id: 'pic-this', name: 'PicThis', icon: Camera, description: 'Analyze images with AI' },
       ]
     },
     {
@@ -129,7 +127,7 @@ export const ToolkitModal: React.FC<ToolkitModalProps> = ({ isOpen, onClose, onT
           
           <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
             <p className="text-sm text-blue-800 dark:text-blue-200">
-              <strong>🚀 Enhanced Toolkit:</strong> Now featuring Calendar Planner for visual task management, Easy Shopping for product search & price comparison, enhanced YouTube summaries, ChatPDF with text support, and comprehensive AI personality management!
+              <strong>🚀 Enhanced Toolkit:</strong> Now featuring advanced Mind Map generator, Easy Shopping with real product links, PicThis with AI image analysis, and comprehensive productivity tools!
             </p>
           </div>
         </CardContent>

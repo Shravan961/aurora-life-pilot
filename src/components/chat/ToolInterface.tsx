@@ -13,7 +13,6 @@ import { VoiceTool } from './tools/VoiceTool';
 import { LiveVoiceTool } from './tools/LiveVoiceTool';
 import { PicThisTool } from './tools/PicThisTool';
 import { MemoTool } from './tools/MemoTool';
-import { InterpretingTool } from './tools/InterpretingTool';
 import { CraftArtifactsTool } from './tools/CraftArtifactsTool';
 import { CloneTool } from './tools/CloneTool';
 import { BotsTool } from './tools/BotsTool';
@@ -21,7 +20,6 @@ import { MakeItMoreTool } from './tools/MakeItMoreTool';
 import { HumanizeTool } from './tools/HumanizeTool';
 import { RoastMasterTool } from './tools/RoastMasterTool';
 import { EasyShoppingTool } from './tools/EasyShoppingTool';
-import { CalendarPlanner } from '../planner/CalendarPlanner';
 
 interface ToolInterfaceProps {
   activeTool: string | null;
@@ -57,8 +55,6 @@ export const ToolInterface: React.FC<ToolInterfaceProps> = ({ activeTool, onSend
         return <PicThisTool onSendToChat={onSendToChat} />;
       case 'memo':
         return <MemoTool onSendToChat={onSendToChat} />;
-      case 'interpreting':
-        return <InterpretingTool onSendToChat={onSendToChat} />;
       case 'craft-artifacts':
         return <CraftArtifactsTool onSendToChat={onSendToChat} />;
       case 'clone':
@@ -73,8 +69,6 @@ export const ToolInterface: React.FC<ToolInterfaceProps> = ({ activeTool, onSend
         return <RoastMasterTool onSendToChat={onSendToChat} />;
       case 'easy-shopping':
         return <EasyShoppingTool onSendToChat={onSendToChat} />;
-      case 'calendar-planner':
-        return <CalendarPlanner onSendToChat={onSendToChat} />;
       default:
         return null;
     }
