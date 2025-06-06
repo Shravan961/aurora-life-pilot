@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Plus, Calendar as CalendarIcon, Clock, CheckCircle, Trash2 } from 'lucide-react';
 import { useLocalTasks } from '@/hooks/useLocalTasks';
-import { generateId, getTimestamp, formatDate } from '@/utils/helpers';
+import { generateId, getTimestamp } from '@/utils/helpers';
 import { toast } from "sonner";
 import { format } from 'date-fns';
 
@@ -73,13 +73,9 @@ export const CalendarPlanner: React.FC<CalendarPlannerProps> = ({ onSendToChat }
     }
   };
 
-  const getTasksForDate = (date: Date) => {
-    const dateString = format(date, 'yyyy-MM-dd');
-    return tasks.filter(task => task.dueDate === dateString);
-  };
-
   const hasTasksOnDate = (date: Date) => {
-    return getTasksForDate(date).length > 0;
+    const dateString = format(date, 'yyyy-MM-dd');
+    return getTasksForDate(dateString).length > 0;
   };
 
   const sendDaySummaryToChat = () => {
