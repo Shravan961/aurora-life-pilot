@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -514,8 +513,7 @@ export const ChatbotPage: React.FC<ChatbotPageProps> = ({ onNavigateBack }) => {
         {/* Tool Interface */}
         {activeTool && (
           <ToolInterface
-            toolId={activeTool}
-            onClose={handleCloseTool}
+            activeTool={activeTool}
             onSendToChat={handleToolMessage}
           />
         )}

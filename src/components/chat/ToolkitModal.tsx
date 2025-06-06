@@ -2,7 +2,7 @@
 import React from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { X, Search, FileText, Mic, Volume2, Zap, Calculator, Map, Users, Camera, Languages, Shield, Globe2, MessageCircle, Plus, Smile, GraduationCap, Youtube, Globe, Eye, MessageSquare, StickyNote, Palette, RotateCcw, Wand2, Sparkles, Bot } from 'lucide-react';
+import { X, Search, FileText, Mic, Volume2, Zap, Calculator, Map, Users, Camera, Languages, Shield, Globe2, MessageCircle, Plus, Smile, GraduationCap, Youtube, Globe, Eye, MessageSquare, StickyNote, Palette, RotateCcw, Wand2, Sparkles, Bot, ShoppingCart } from 'lucide-react';
 
 interface ToolkitModalProps {
   isOpen: boolean;
@@ -30,6 +30,12 @@ export const ToolkitModal: React.FC<ToolkitModalProps> = ({ isOpen, onClose, onT
         { id: 'flashcards', name: 'Flashcards', icon: GraduationCap, description: 'Generate study flashcards' },
         { id: 'youtube-summary', name: 'YouTube Summary', icon: Youtube, description: 'Summarize YouTube videos' },
         { id: 'web-summary', name: 'Web Summary', icon: Globe, description: 'Summarize web pages' },
+      ]
+    },
+    {
+      name: "🛒 Shopping & Commerce",
+      tools: [
+        { id: 'easy-shopping', name: 'Easy Shopping', icon: ShoppingCart, description: 'Find products & compare prices' },
       ]
     },
     {
@@ -120,7 +126,7 @@ export const ToolkitModal: React.FC<ToolkitModalProps> = ({ isOpen, onClose, onT
           
           <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
             <p className="text-sm text-blue-800 dark:text-blue-200">
-              <strong>🚀 Enhanced Toolkit:</strong> Now featuring Mind Map with AI Bot creation, enhanced YouTube summaries, ChatPDF with text support, and comprehensive AI personality management!
+              <strong>🚀 Enhanced Toolkit:</strong> Now featuring Easy Shopping for product search & price comparison, Mind Map with AI Bot creation, enhanced YouTube summaries, ChatPDF with text support, and comprehensive AI personality management!
             </p>
           </div>
         </CardContent>

@@ -20,6 +20,7 @@ import { BotsTool } from './tools/BotsTool';
 import { MakeItMoreTool } from './tools/MakeItMoreTool';
 import { HumanizeTool } from './tools/HumanizeTool';
 import { RoastMasterTool } from './tools/RoastMasterTool';
+import { EasyShoppingTool } from './tools/EasyShoppingTool';
 
 interface ToolInterfaceProps {
   activeTool: string | null;
@@ -69,6 +70,8 @@ export const ToolInterface: React.FC<ToolInterfaceProps> = ({ activeTool, onSend
         return <HumanizeTool onSendToChat={onSendToChat} />;
       case 'roast-master':
         return <RoastMasterTool onSendToChat={onSendToChat} />;
+      case 'easy-shopping':
+        return <EasyShoppingTool onSendToChat={onSendToChat} />;
       default:
         return null;
     }
