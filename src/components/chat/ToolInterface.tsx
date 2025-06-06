@@ -21,6 +21,7 @@ import { MakeItMoreTool } from './tools/MakeItMoreTool';
 import { HumanizeTool } from './tools/HumanizeTool';
 import { RoastMasterTool } from './tools/RoastMasterTool';
 import { EasyShoppingTool } from './tools/EasyShoppingTool';
+import { CalendarPlanner } from '../planner/CalendarPlanner';
 
 interface ToolInterfaceProps {
   activeTool: string | null;
@@ -72,13 +73,15 @@ export const ToolInterface: React.FC<ToolInterfaceProps> = ({ activeTool, onSend
         return <RoastMasterTool onSendToChat={onSendToChat} />;
       case 'easy-shopping':
         return <EasyShoppingTool onSendToChat={onSendToChat} />;
+      case 'calendar-planner':
+        return <CalendarPlanner onSendToChat={onSendToChat} />;
       default:
         return null;
     }
   };
 
   return (
-    <div className="h-full">
+    <div className="h-full overflow-hidden">
       {renderTool()}
     </div>
   );

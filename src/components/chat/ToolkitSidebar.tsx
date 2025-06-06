@@ -23,7 +23,9 @@ import {
   Globe,
   Sparkles,
   RotateCcw,
-  Eye
+  Eye,
+  ShoppingCart,
+  Calendar
 } from 'lucide-react';
 
 interface ToolkitSidebarProps {
@@ -49,7 +51,7 @@ const tools = [
     available: true
   },
   {
-    id: 'chatpdf',
+    id: 'chat-pdf',
     name: 'Chat PDF',
     description: 'Upload and chat with PDF documents',
     icon: FileText,
@@ -121,6 +123,14 @@ const tools = [
     available: true
   },
   {
+    id: 'calendar-planner',
+    name: 'Calendar Planner',
+    description: 'Visual calendar task management',
+    icon: Calendar,
+    category: 'Productivity',
+    available: true
+  },
+  {
     id: 'ai-detector',
     name: 'AI Detector',
     description: 'Detect AI-generated content',
@@ -174,6 +184,14 @@ const tools = [
     description: 'Humorous content critique',
     icon: RotateCcw,
     category: 'Entertainment',
+    available: true
+  },
+  {
+    id: 'easy-shopping',
+    name: 'Easy Shopping',
+    description: 'Find products & compare prices',
+    icon: ShoppingCart,
+    category: 'Shopping & Commerce',
     available: true
   }
 ];
