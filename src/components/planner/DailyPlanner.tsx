@@ -3,30 +3,37 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Check, Clock, Calendar, Trash2, CheckCircle } from 'lucide-react';
+import { Calendar } from "@/components/ui/calendar";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Textarea } from "@/components/ui/textarea";
+import { Plus, Calendar as CalendarIcon, Clock, CheckCircle, Trash2, MessageCircle, Send, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useLocalTasks } from '@/hooks/useLocalTasks';
-import { generateId, getTimestamp, getTodayDateString, formatDate } from '@/utils/helpers';
+import { generateId, getTimestamp, formatDate } from '@/utils/helpers';
 import { toast } from "sonner";
+import { format, addDays, subDays, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
 
-export const DailyPlanner: React.FC = () => {
+interface DailyPlannerProps {
+  onSendToChat?: (message: string) => void;
+}
+
+export const DailyPlanner: React.FC<DailyPlannerProps> = ({ onSendToChat }) => {
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [newTaskTitle, setNewTaskTitle] = useState('');
-  const [newTaskDueDate, setNewTaskDueDate] = useState(getTodayDateString());
-  const [showAllTasks, setShowAllTasks] = useState(false);
+  const [newTaskNote, setNewTaskNote] = useState('');
+  const [showAddTask, setShowAddTask] = useState(false);
+  const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('day');
   
   const { 
     tasks, 
     addTask, 
     updateTask, 
     deleteTask, 
-    getTodaysTasks, 
-    getTodaysCompletedCount, 
-    getTodaysTotalCount 
+    getTasksForDate 
   } = useLocalTasks();
 
-  const todaysTasks = getTodaysTasks();
-  const completedToday = getTodaysCompletedCount();
-  const totalToday = getTodaysTotalCount();
-  const remainingToday = totalToday - completedToday;
+  const selectedDateString = format(selectedDate, 'yyyy-MM-dd');
+  const tasksForSelectedDate = getTasksForDate(selectedDateString);
 
   const handleAddTask = () => {
     if (!newTaskTitle.trim()) {
@@ -37,243 +44,326 @@ export const DailyPlanner: React.FC = () => {
     const newTask = {
       id: generateId(),
       title: newTaskTitle.trim(),
-      dueDate: newTaskDueDate,
+      dueDate: selectedDateString,
       completed: false,
       timestamp: getTimestamp(),
+      note: newTaskNote.trim() || undefined,
     };
 
     addTask(newTask);
     setNewTaskTitle('');
-    setNewTaskDueDate(getTodayDateString());
-    toast.success('Task added successfully!');
-  };
-
-  const handleCompleteTask = (taskId: string, title: string) => {
-    updateTask(taskId, { completed: true });
-    toast.success(`"${title}" marked as completed!`);
-  };
-
-  const handleToggleTask = (taskId: string, completed: boolean) => {
-    updateTask(taskId, { completed });
-    toast.success(completed ? 'Task completed!' : 'Task marked as incomplete');
-  };
-
-  const handleDeleteTask = (taskId: string, title: string) => {
-    if (window.confirm(`Are you sure you want to delete "${title}"?`)) {
-      deleteTask(taskId);
-      toast.success('Task deleted');
+    setNewTaskNote('');
+    setShowAddTask(false);
+    toast.success('Task added to calendar!');
+    
+    // Send to chat if available
+    if (onSendToChat) {
+      onSendToChat(`📅 Added new task: "${newTask.title}" for ${format(selectedDate, 'EEEE, MMMM do, yyyy')}${newTask.note ? ` - Note: ${newTask.note}` : ''}`);
     }
   };
 
-  const getPriorityColor = (dueDate: string, completed: boolean) => {
-    if (completed) return 'border-l-green-500 bg-green-50 dark:bg-green-950/20';
+  const handleToggleTask = (taskId: string, completed: boolean, title: string) => {
+    updateTask(taskId, { completed });
+    toast.success(completed ? 'Task completed!' : 'Task marked as incomplete');
     
-    const today = getTodayDateString();
-    const due = new Date(dueDate);
-    const todayDate = new Date(today);
-    
-    if (due < todayDate) return 'border-l-red-500 bg-red-50 dark:bg-red-950/20'; // Overdue
-    if (due.getTime() === todayDate.getTime()) return 'border-l-yellow-500 bg-yellow-50 dark:bg-yellow-950/20'; // Due today
-    return 'border-l-blue-500 bg-blue-50 dark:bg-blue-950/20'; // Future
+    if (onSendToChat) {
+      onSendToChat(`✅ ${completed ? 'Completed' : 'Reopened'} task: "${title}" on ${format(selectedDate, 'EEEE, MMMM do, yyyy')}`);
+    }
   };
 
-  const getStatusText = (dueDate: string, completed: boolean) => {
-    if (completed) return 'Completed';
-    
-    const today = getTodayDateString();
-    const due = new Date(dueDate);
-    const todayDate = new Date(today);
-    
-    if (due < todayDate) return 'Overdue';
-    if (due.getTime() === todayDate.getTime()) return 'Due today';
-    return 'Upcoming';
+  const handleDeleteTask = (taskId: string, title: string) => {
+    if (window.confirm(`Delete "${title}"?`)) {
+      deleteTask(taskId);
+      toast.success('Task deleted');
+      
+      if (onSendToChat) {
+        onSendToChat(`🗑️ Deleted task: "${title}" from ${format(selectedDate, 'EEEE, MMMM do, yyyy')}`);
+      }
+    }
   };
 
-  const displayTasks = showAllTasks ? tasks : todaysTasks;
+  const sendDaySummaryToChat = () => {
+    if (!onSendToChat) return;
+    
+    const totalTasks = tasksForSelectedDate.length;
+    const completedTasks = tasksForSelectedDate.filter(t => t.completed).length;
+    const pendingTasks = tasksForSelectedDate.filter(t => !t.completed);
+    
+    let summary = `📅 **Daily Summary for ${format(selectedDate, 'EEEE, MMMM do, yyyy')}**\n\n`;
+    summary += `📊 **Overview:**\n`;
+    summary += `• Total tasks: ${totalTasks}\n`;
+    summary += `• Completed: ${completedTasks}\n`;
+    summary += `• Remaining: ${totalTasks - completedTasks}\n\n`;
+    
+    if (pendingTasks.length > 0) {
+      summary += `📋 **Pending Tasks:**\n`;
+      pendingTasks.forEach((task, index) => {
+        summary += `${index + 1}. ${task.title}\n`;
+      });
+    } else if (totalTasks > 0) {
+      summary += `🎉 All tasks completed for today!`;
+    } else {
+      summary += `📝 No tasks scheduled for this day.`;
+    }
+    
+    onSendToChat(summary);
+  };
+
+  const getWeekDays = () => {
+    const start = startOfWeek(selectedDate);
+    const end = endOfWeek(selectedDate);
+    return eachDayOfInterval({ start, end });
+  };
+
+  const hasTasksOnDate = (date: Date) => {
+    const dateString = format(date, 'yyyy-MM-dd');
+    return getTasksForDate(dateString).length > 0;
+  };
+
+  const navigateDate = (direction: 'prev' | 'next') => {
+    if (viewMode === 'day') {
+      setSelectedDate(direction === 'next' ? addDays(selectedDate, 1) : subDays(selectedDate, 1));
+    } else if (viewMode === 'week') {
+      setSelectedDate(direction === 'next' ? addDays(selectedDate, 7) : subDays(selectedDate, 7));
+    } else {
+      setSelectedDate(direction === 'next' ? addDays(selectedDate, 30) : subDays(selectedDate, 30));
+    }
+  };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 bg-background min-h-screen p-4">
       <div className="text-center">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-          Daily Planner
+        <h2 className="text-2xl font-bold text-foreground mb-2">
+          AI Calendar Planner
         </h2>
-        <p className="text-gray-600 dark:text-gray-300">
-          Organize your day and boost productivity
+        <p className="text-muted-foreground">
+          Organize your day with AI assistance
         </p>
       </div>
 
-      {/* Daily Summary */}
-      <Card className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white">
-        <CardContent className="p-4">
-          <div className="text-center mb-4">
-            <h3 className="text-lg font-semibold">Today's Progress</h3>
-            <p className="text-sm opacity-90">
-              You have {totalToday} tasks due today. 
-              Completed {completedToday}, Remaining {remainingToday}.
-            </p>
-          </div>
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-3xl font-bold">{completedToday}/{totalToday}</div>
-              <div className="text-sm opacity-90">Tasks</div>
-            </div>
-            <div className="text-right">
-              <div className="text-3xl font-bold">
-                {totalToday > 0 ? Math.round((completedToday / totalToday) * 100) : 0}%
-              </div>
-              <div className="text-sm opacity-90">Complete</div>
-            </div>
-          </div>
-          <div className="w-full bg-blue-400/30 rounded-full h-2 mt-3">
-            <div 
-              className="bg-white h-2 rounded-full transition-all duration-300"
-              style={{ 
-                width: `${totalToday > 0 ? (completedToday / totalToday) * 100 : 0}%` 
-              }}
-            ></div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* View Mode Toggle */}
+      <div className="flex justify-center space-x-2 mb-4">
+        {(['day', 'week', 'month'] as const).map((mode) => (
+          <Button
+            key={mode}
+            variant={viewMode === mode ? "default" : "outline"}
+            size="sm"
+            onClick={() => setViewMode(mode)}
+            className="capitalize"
+          >
+            {mode}
+          </Button>
+        ))}
+      </div>
 
-      {/* Add New Task */}
-      <Card className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm">
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Plus className="h-5 w-5" />
-            <span>Add New Task</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Input
-            value={newTaskTitle}
-            onChange={(e) => setNewTaskTitle(e.target.value)}
-            placeholder="Task title..."
-            onKeyPress={(e) => e.key === 'Enter' && handleAddTask()}
-          />
-          <div className="flex space-x-2">
-            <Input
-              type="date"
-              value={newTaskDueDate}
-              onChange={(e) => setNewTaskDueDate(e.target.value)}
-              className="flex-1"
-            />
-            <Button onClick={handleAddTask} disabled={!newTaskTitle.trim()}>
-              Add Task
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Task Filter */}
-      <div className="flex space-x-2">
-        <Button
-          variant={!showAllTasks ? "default" : "outline"}
-          onClick={() => setShowAllTasks(false)}
-        >
-          Today's Tasks ({todaysTasks.length})
+      {/* Navigation */}
+      <div className="flex items-center justify-between">
+        <Button variant="outline" size="sm" onClick={() => navigateDate('prev')}>
+          <ChevronLeft className="h-4 w-4" />
         </Button>
-        <Button
-          variant={showAllTasks ? "default" : "outline"}
-          onClick={() => setShowAllTasks(true)}
-        >
-          All Tasks ({tasks.length})
+        <h3 className="text-lg font-semibold">
+          {viewMode === 'day' && format(selectedDate, 'EEEE, MMMM do, yyyy')}
+          {viewMode === 'week' && `Week of ${format(startOfWeek(selectedDate), 'MMM do')}`}
+          {viewMode === 'month' && format(selectedDate, 'MMMM yyyy')}
+        </h3>
+        <Button variant="outline" size="sm" onClick={() => navigateDate('next')}>
+          <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
 
-      {/* Tasks List */}
-      <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center space-x-2">
-          <Calendar className="h-5 w-5" />
-          <span>{showAllTasks ? 'All Tasks' : 'Today\'s Tasks'}</span>
-        </h3>
-
-        {displayTasks.length === 0 ? (
-          <Card className="bg-white/40 dark:bg-gray-800/40 backdrop-blur-sm">
-            <CardContent className="p-8 text-center">
-              <Clock className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-              <p className="text-gray-600 dark:text-gray-400">
-                {showAllTasks ? 'No tasks yet. Add one above to get started!' : 'No tasks due today!'}
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-3">
-            {displayTasks
-              .sort((a, b) => {
-                if (a.completed !== b.completed) {
-                  return a.completed ? 1 : -1;
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Calendar */}
+        <Card className="lg:col-span-1">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Calendar</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={(date) => date && setSelectedDate(date)}
+              className="rounded-md border-0"
+              modifiers={{
+                hasTasks: (date) => hasTasksOnDate(date)
+              }}
+              modifiersStyles={{
+                hasTasks: { 
+                  backgroundColor: 'hsl(var(--primary) / 0.1)',
+                  color: 'hsl(var(--primary))',
+                  fontWeight: 'bold'
                 }
-                return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
-              })
-              .map((task) => (
-                <Card 
-                  key={task.id} 
-                  className={`border-l-4 ${getPriorityColor(task.dueDate, task.completed)} backdrop-blur-sm`}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-start space-x-3">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleToggleTask(task.id, !task.completed)}
-                        className={`mt-1 ${task.completed ? 'text-green-600' : 'text-gray-400'}`}
-                      >
-                        <Check className="h-4 w-4" />
-                      </Button>
-                      
-                      <div className="flex-1 min-w-0">
-                        <h4 className={`font-medium ${
-                          task.completed 
-                            ? 'line-through text-gray-500 dark:text-gray-400' 
-                            : 'text-gray-900 dark:text-white'
-                        }`}>
-                          {task.title}
-                        </h4>
-                        <div className="flex items-center space-x-4 mt-2">
-                          <span className={`text-xs px-2 py-1 rounded-full ${
-                            task.completed 
-                              ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
-                              : task.dueDate < getTodayDateString()
-                              ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
-                              : task.dueDate === getTodayDateString()
-                              ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
-                              : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                          }`}>
-                            {getStatusText(task.dueDate, task.completed)}
-                          </span>
-                          <span className="text-xs text-gray-500 dark:text-gray-400">
-                            Due: {formatDate(new Date(task.dueDate).getTime())}
-                          </span>
-                        </div>
-                      </div>
+              }}
+            />
+          </CardContent>
+        </Card>
 
-                      <div className="flex space-x-1">
-                        {!task.completed && (
+        {/* Tasks */}
+        <Card className="lg:col-span-2">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center justify-between text-sm">
+              <div className="flex items-center space-x-2">
+                <CalendarIcon className="h-4 w-4" />
+                <span>Tasks for {format(selectedDate, 'MMM do')}</span>
+                <Badge variant="secondary" className="text-xs">
+                  {tasksForSelectedDate.length}
+                </Badge>
+              </div>
+              {onSendToChat && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={sendDaySummaryToChat}
+                  disabled={tasksForSelectedDate.length === 0}
+                  className="text-xs"
+                >
+                  <MessageCircle className="h-3 w-3 mr-1" />
+                  Chat Summary
+                </Button>
+              )}
+            </CardTitle>
+          </CardHeader>
+          
+          <CardContent className="space-y-3">
+            {/* Add Task */}
+            {!showAddTask ? (
+              <Button
+                onClick={() => setShowAddTask(true)}
+                className="w-full"
+                variant="outline"
+                size="sm"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Task
+              </Button>
+            ) : (
+              <Card className="p-3 bg-muted/50">
+                <div className="space-y-2">
+                  <Input
+                    value={newTaskTitle}
+                    onChange={(e) => setNewTaskTitle(e.target.value)}
+                    placeholder="Task title..."
+                    className="text-sm"
+                    autoFocus
+                  />
+                  <Textarea
+                    value={newTaskNote}
+                    onChange={(e) => setNewTaskNote(e.target.value)}
+                    placeholder="Add notes (optional)..."
+                    className="text-sm min-h-[60px]"
+                  />
+                  <div className="flex space-x-2">
+                    <Button onClick={handleAddTask} disabled={!newTaskTitle.trim()} size="sm" className="flex-1">
+                      <Plus className="h-3 w-3 mr-1" />
+                      Add
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => {
+                        setShowAddTask(false);
+                        setNewTaskTitle('');
+                        setNewTaskNote('');
+                      }}
+                      size="sm"
+                      className="flex-1"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            )}
+
+            {/* Tasks List */}
+            <ScrollArea className="h-[400px]">
+              <div className="space-y-2">
+                {tasksForSelectedDate.length === 0 ? (
+                  <div className="text-center text-muted-foreground py-8">
+                    <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">No tasks for this date</p>
+                    <p className="text-xs mt-1">Add a task to get started</p>
+                  </div>
+                ) : (
+                  tasksForSelectedDate
+                    .sort((a, b) => a.completed ? 1 : b.completed ? -1 : 0)
+                    .map((task) => (
+                      <Card key={task.id} className={`p-3 ${task.completed ? 'bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800' : 'border-border'}`}>
+                        <div className="flex items-start space-x-3">
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleCompleteTask(task.id, task.title)}
-                            className="text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/20"
+                            onClick={() => handleToggleTask(task.id, !task.completed, task.title)}
+                            className={`mt-0.5 ${task.completed ? 'text-green-600' : 'text-muted-foreground'}`}
                           >
                             <CheckCircle className="h-4 w-4" />
                           </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteTask(task.id, task.title)}
-                          className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-          </div>
-        )}
+                          
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm font-medium ${task.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+                              {task.title}
+                            </p>
+                            {task.note && (
+                              <p className="text-xs text-muted-foreground mt-1 bg-muted/50 p-2 rounded">
+                                {task.note}
+                              </p>
+                            )}
+                          </div>
+
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteTask(task.id, task.title)}
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </Card>
+                    ))
+                )}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
       </div>
+
+      {/* Week View */}
+      {viewMode === 'week' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Week Overview</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-7 gap-2">
+              {getWeekDays().map((day) => {
+                const dayTasks = getTasksForDate(format(day, 'yyyy-MM-dd'));
+                const isSelected = format(day, 'yyyy-MM-dd') === selectedDateString;
+                
+                return (
+                  <div 
+                    key={day.toISOString()} 
+                    className={`p-2 rounded border cursor-pointer hover:bg-muted/50 ${isSelected ? 'bg-primary/10 border-primary' : 'border-border'}`}
+                    onClick={() => setSelectedDate(day)}
+                  >
+                    <div className="text-xs font-medium text-center">
+                      {format(day, 'EEE')}
+                    </div>
+                    <div className="text-sm font-bold text-center">
+                      {format(day, 'd')}
+                    </div>
+                    {dayTasks.length > 0 && (
+                      <div className="text-xs text-center mt-1">
+                        <Badge variant="secondary" className="text-xs">
+                          {dayTasks.length}
+                        </Badge>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

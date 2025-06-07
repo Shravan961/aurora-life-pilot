@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { NutritionEntry } from '@/types';
 import { STORAGE_KEYS } from '@/utils/constants';
@@ -11,7 +10,16 @@ export const useLocalNutrition = () => {
     const stored = localStorage.getItem(STORAGE_KEYS.NUTRITION_ENTRIES);
     if (stored) {
       try {
-        setEntries(JSON.parse(stored));
+        const allEntries = JSON.parse(stored);
+        // Filter out entries that are not from today
+        const todayEntries = allEntries.filter((entry: NutritionEntry) => isToday(entry.timestamp));
+        
+        // If we filtered out old entries, update localStorage
+        if (todayEntries.length !== allEntries.length) {
+          localStorage.setItem(STORAGE_KEYS.NUTRITION_ENTRIES, JSON.stringify(todayEntries));
+        }
+        
+        setEntries(todayEntries);
       } catch (error) {
         console.error('Error parsing nutrition entries:', error);
         setEntries([]);
@@ -20,8 +28,10 @@ export const useLocalNutrition = () => {
   }, []);
 
   const saveEntries = (newEntries: NutritionEntry[]) => {
-    setEntries(newEntries);
-    localStorage.setItem(STORAGE_KEYS.NUTRITION_ENTRIES, JSON.stringify(newEntries));
+    // Only keep today's entries
+    const todayEntries = newEntries.filter(entry => isToday(entry.timestamp));
+    setEntries(todayEntries);
+    localStorage.setItem(STORAGE_KEYS.NUTRITION_ENTRIES, JSON.stringify(todayEntries));
   };
 
   const addEntry = (entry: NutritionEntry) => {
@@ -46,11 +56,21 @@ export const useLocalNutrition = () => {
     return entries.filter(entry => isToday(entry.timestamp));
   };
 
+  // Reset entries daily (called when component mounts)
+  const resetDailyEntries = () => {
+    const todayEntries = entries.filter(entry => isToday(entry.timestamp));
+    if (todayEntries.length !== entries.length) {
+      setEntries(todayEntries);
+      localStorage.setItem(STORAGE_KEYS.NUTRITION_ENTRIES, JSON.stringify(todayEntries));
+    }
+  };
+
   return {
     entries,
     addEntry,
     deleteEntry,
     getTodaysCalories,
-    getTodaysEntries
+    getTodaysEntries,
+    resetDailyEntries
   };
 };

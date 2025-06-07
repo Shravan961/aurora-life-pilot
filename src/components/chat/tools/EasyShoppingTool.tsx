@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Search, ShoppingCart, ExternalLink, Star, DollarSign, Loader2 } from 'lucide-react';
+import { Search, ShoppingCart, ExternalLink, Star, DollarSign, Loader2, Package } from 'lucide-react';
 import { toast } from 'sonner';
 import { GROQ_API_KEY, GROQ_MODEL } from '@/utils/constants';
 
@@ -41,18 +41,18 @@ export const EasyShoppingTool: React.FC<EasyShoppingToolProps> = ({ onSendToChat
             {
               role: 'system',
               content: `You are a shopping assistant that generates realistic product search results. For any product search, return a JSON array of 6-8 products from popular stores. Each product must have:
-              - name: Product name with brand/model
+              - name: Product name with brand/model (detailed and specific)
               - price: Realistic price with currency symbol
               - store: Real store name (Amazon, eBay, Best Buy, Walmart, Target, Home Depot, etc.)
-              - link: Use actual store search URLs like "https://www.amazon.com/s?k=" + encoded product name
+              - link: Use actual store search URLs that work properly
               - rating: Star rating like "4.5/5" or "4.2/5"
-              - description: Brief product description focusing on key features
+              - description: Detailed product description with key features, specifications, and benefits
               
-              Make the data realistic and varied. Use proper search URLs that actually work.`
+              Make the data realistic and varied. Focus on creating working search URLs that take users to the actual product searches.`
             },
             {
               role: 'user',
-              content: `Find shopping results for: ${query}`
+              content: `Find detailed shopping results for: ${query}`
             }
           ],
           temperature: 0.4,
@@ -72,7 +72,6 @@ export const EasyShoppingTool: React.FC<EasyShoppingToolProps> = ({ onSendToChat
           const cleanContent = content.replace(/```json\n?|```\n?/g, '').trim();
           const parsedResults = JSON.parse(cleanContent);
           
-          // Ensure proper URLs
           const processedResults = parsedResults.map((product: any) => ({
             ...product,
             link: product.link || generateStoreLink(product.store, query)
@@ -95,12 +94,12 @@ export const EasyShoppingTool: React.FC<EasyShoppingToolProps> = ({ onSendToChat
   const generateStoreLink = (store: string, query: string): string => {
     const encodedQuery = encodeURIComponent(query);
     const storeLinks: { [key: string]: string } = {
-      'Amazon': `https://www.amazon.com/s?k=${encodedQuery}`,
-      'eBay': `https://www.ebay.com/sch/i.html?_nkw=${encodedQuery}`,
+      'Amazon': `https://www.amazon.com/s?k=${encodedQuery}&ref=nb_sb_noss`,
+      'eBay': `https://www.ebay.com/sch/i.html?_nkw=${encodedQuery}&_sacat=0`,
       'Best Buy': `https://www.bestbuy.com/site/searchpage.jsp?st=${encodedQuery}`,
       'Walmart': `https://www.walmart.com/search?q=${encodedQuery}`,
       'Target': `https://www.target.com/s?searchTerm=${encodedQuery}`,
-      'Home Depot': `https://www.homedepot.com/s/${encodedQuery}`,
+      'Home Depot': `https://www.homedepot.com/s/${encodedQuery}?NCNI-5`,
       'Lowes': `https://www.lowes.com/search?searchTerm=${encodedQuery}`,
       'Costco': `https://www.costco.com/CatalogSearch?keyword=${encodedQuery}`,
       'Newegg': `https://www.newegg.com/p/pl?d=${encodedQuery}`,
@@ -118,7 +117,7 @@ export const EasyShoppingTool: React.FC<EasyShoppingToolProps> = ({ onSendToChat
       store: store,
       link: generateStoreLink(store, query),
       rating: `${(Math.random() * 1.5 + 3.5).toFixed(1)}/5`,
-      description: `High-quality ${query.toLowerCase()} with excellent features and customer reviews`
+      description: `High-quality ${query.toLowerCase()} with excellent features, durable construction, and positive customer reviews. Perfect for daily use with modern design and reliable performance.`
     }));
   };
 
@@ -141,8 +140,7 @@ export const EasyShoppingTool: React.FC<EasyShoppingToolProps> = ({ onSendToChat
       
       if (searchResults.length > 0) {
         toast.success(`Found ${searchResults.length} results for "${searchQuery}"`);
-        // Send to chat
-        onSendToChat(`🛒 Found ${searchResults.length} shopping results for "${searchQuery}". Check the Easy Shopping tool for details and direct links!`);
+        onSendToChat(`🛒 Found ${searchResults.length} shopping results for "${searchQuery}". Check the Easy Shopping tool for detailed product information and direct store links!`);
       } else {
         toast.error('No results found. Try a different search term.');
       }
@@ -155,69 +153,72 @@ export const EasyShoppingTool: React.FC<EasyShoppingToolProps> = ({ onSendToChat
   };
 
   const handleSendToChat = (product: ProductResult) => {
-    const message = `🛍️ **${product.name}**\n💰 Price: ${product.price} at ${product.store}\n⭐ Rating: ${product.rating}\n📝 ${product.description}\n🔗 [Shop Now](${product.link})`;
+    const message = `🛍️ **${product.name}**\n\n💰 **Price:** ${product.price} at ${product.store}\n⭐ **Rating:** ${product.rating}\n\n📝 **Details:** ${product.description}\n\n🔗 [Shop Now at ${product.store}](${product.link})`;
     onSendToChat(message);
     toast.success('Product details sent to chat!');
   };
 
   return (
-    <div className="h-full flex flex-col p-4 max-w-full">
-      <Card className="flex-1 flex flex-col">
-        <CardHeader className="pb-4">
-          <CardTitle className="flex items-center space-x-2 text-lg">
-            <ShoppingCart className="h-5 w-5" />
+    <div className="h-full flex flex-col p-3 max-w-full bg-background">
+      <Card className="flex-1 flex flex-col border-0 shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center space-x-2 text-base">
+            <ShoppingCart className="h-4 w-4 text-primary" />
             <span>Easy Shopping</span>
           </CardTitle>
         </CardHeader>
-        <CardContent className="flex-1 flex flex-col space-y-4">
+        <CardContent className="flex-1 flex flex-col space-y-3">
           <div className="flex space-x-2">
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search for any product..."
               onKeyPress={(e) => e.key === 'Enter' && !isLoading && handleSearch()}
-              className="flex-1"
+              className="flex-1 text-sm"
+              size="sm"
             />
             <Button 
               onClick={handleSearch} 
               disabled={isLoading || !searchQuery.trim()}
               size="sm"
-              className="bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700"
+              className="bg-primary hover:bg-primary/90"
             >
               {isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="h-3 w-3 animate-spin" />
               ) : (
-                <Search className="h-4 w-4" />
+                <Search className="h-3 w-3" />
               )}
             </Button>
           </div>
 
           {results.length > 0 && (
             <ScrollArea className="flex-1">
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {results.map((product, index) => (
-                  <Card key={index} className="p-3 hover:shadow-md transition-all border-l-4 border-l-blue-500">
-                    <div className="space-y-3">
-                      <div className="flex items-start justify-between">
-                        <h3 className="font-medium text-sm line-clamp-2 flex-1 pr-2">{product.name}</h3>
-                        <div className="flex items-center space-x-1 text-green-600 font-bold">
+                  <Card key={index} className="p-3 hover:shadow-sm transition-all border border-border/50 bg-card">
+                    <div className="space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <h3 className="font-medium text-sm line-clamp-2 flex-1">{product.name}</h3>
+                        <div className="flex items-center space-x-1 text-green-600 font-bold shrink-0">
                           <DollarSign className="h-3 w-3" />
                           <span className="text-sm">{product.price}</span>
                         </div>
                       </div>
                       
                       <div className="flex items-center justify-between text-xs">
-                        <span className="font-medium text-blue-600">{product.store}</span>
+                        <span className="font-medium text-primary bg-primary/10 px-2 py-1 rounded">{product.store}</span>
                         {product.rating && (
                           <div className="flex items-center space-x-1">
                             <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                            <span className="text-yellow-600">{product.rating}</span>
+                            <span className="text-yellow-600 font-medium">{product.rating}</span>
                           </div>
                         )}
                       </div>
 
                       {product.description && (
-                        <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2">{product.description}</p>
+                        <p className="text-xs text-muted-foreground line-clamp-2 bg-muted/50 p-2 rounded">
+                          {product.description}
+                        </p>
                       )}
 
                       <div className="flex space-x-2 pt-1">
@@ -225,16 +226,17 @@ export const EasyShoppingTool: React.FC<EasyShoppingToolProps> = ({ onSendToChat
                           variant="outline"
                           size="sm"
                           onClick={() => window.open(product.link, '_blank')}
-                          className="flex-1 text-xs hover:bg-blue-50"
+                          className="flex-1 text-xs hover:bg-primary/5"
                         >
                           <ExternalLink className="h-3 w-3 mr-1" />
-                          Shop Now
+                          Shop at {product.store}
                         </Button>
                         <Button
                           size="sm"
                           onClick={() => handleSendToChat(product)}
-                          className="flex-1 text-xs bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700"
+                          className="flex-1 text-xs bg-primary hover:bg-primary/90"
                         >
+                          <Package className="h-3 w-3 mr-1" />
                           Send to Chat
                         </Button>
                       </div>
@@ -247,10 +249,10 @@ export const EasyShoppingTool: React.FC<EasyShoppingToolProps> = ({ onSendToChat
 
           {results.length === 0 && !isLoading && (
             <div className="flex-1 flex items-center justify-center">
-              <div className="text-center text-gray-500">
-                <ShoppingCart className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">Search for products to see results</p>
-                <p className="text-xs text-gray-400 mt-1">All links lead to actual store search pages</p>
+              <div className="text-center text-muted-foreground">
+                <ShoppingCart className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">Search for products to see detailed results</p>
+                <p className="text-xs mt-1">All links lead to actual store search pages</p>
               </div>
             </div>
           )}

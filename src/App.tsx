@@ -14,7 +14,7 @@ import './App.css';
 function App() {
   return (
     <Router>
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-background">
         <Routes>
           <Route path="/signin" element={<SignIn />} />
           <Route path="/signup" element={<SignUp />} />
@@ -39,7 +39,7 @@ function App() {
           } />
           <Route path="*" element={<NotFound />} />
         </Routes>
-        <Toaster />
+        <Toaster richColors position="top-right" />
       </div>
     </Router>
   );

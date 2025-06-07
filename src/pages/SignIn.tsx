@@ -6,14 +6,13 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 
 const SignIn = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const { signIn, user } = useAuth();
-  const { toast } = useToast();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -26,11 +25,7 @@ const SignIn = () => {
     e.preventDefault();
     
     if (!email || !password) {
-      toast({
-        title: "Error",
-        description: "Please fill in all fields",
-        variant: "destructive"
-      });
+      toast.error('Please fill in all fields');
       return;
     }
 
@@ -38,15 +33,28 @@ const SignIn = () => {
     const { error } = await signIn(email, password);
     
     if (error) {
-      toast({
-        title: "Sign In Failed",
-        description: error.message,
-        variant: "destructive"
-      });
+      let errorMessage = 'Sign in failed. Please try again.';
+      
+      if (error.message.includes('Invalid login credentials')) {
+        errorMessage = 'Invalid email or password. Please check your credentials.';
+      } else if (error.message.includes('Email not confirmed')) {
+        errorMessage = 'Please verify your email first. Check your inbox for the verification link.';
+        toast.error(errorMessage, {
+          description: 'Look for the Supabase authentication email and click the verification link.',
+          duration: 6000
+        });
+      } else if (error.message.includes('Too many requests')) {
+        errorMessage = 'Too many login attempts. Please wait a moment and try again.';
+      } else {
+        errorMessage = `Sign In Failed: ${error.message}`;
+      }
+      
+      if (!error.message.includes('Email not confirmed')) {
+        toast.error(errorMessage);
+      }
     } else {
-      toast({
-        title: "Success",
-        description: "Signed in successfully!"
+      toast.success('Welcome back!', {
+        description: 'You have successfully signed in to Aurafy.',
       });
       navigate('/');
     }
@@ -55,14 +63,14 @@ const SignIn = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-indigo-950 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex items-center justify-center space-x-2 mb-4">
-            <div className="w-8 h-8 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">A</span>
+            <div className="w-8 h-8 bg-gradient-to-r from-primary to-primary/80 rounded-lg flex items-center justify-center">
+              <span className="text-primary-foreground font-bold text-sm">A</span>
             </div>
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">
               Aurafy
             </h1>
           </div>
@@ -99,7 +107,7 @@ const SignIn = () => {
           </form>
           <div className="mt-4 text-center text-sm">
             Don't have an account?{' '}
-            <Link to="/signup" className="text-indigo-600 hover:underline">
+            <Link to="/signup" className="text-primary hover:underline">
               Sign up
             </Link>
           </div>

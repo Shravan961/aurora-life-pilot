@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 
 const SignUp = () => {
   const [fullName, setFullName] = useState('');
@@ -14,7 +14,6 @@ const SignUp = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const { signUp, user } = useAuth();
-  const { toast } = useToast();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -27,20 +26,12 @@ const SignUp = () => {
     e.preventDefault();
     
     if (!email || !password) {
-      toast({
-        title: "Error",
-        description: "Please fill in required fields",
-        variant: "destructive"
-      });
+      toast.error('Please fill in required fields');
       return;
     }
 
     if (password.length < 6) {
-      toast({
-        title: "Error",
-        description: "Password must be at least 6 characters long",
-        variant: "destructive"
-      });
+      toast.error('Password must be at least 6 characters long');
       return;
     }
 
@@ -48,31 +39,38 @@ const SignUp = () => {
     const { error } = await signUp(email, password, fullName);
     
     if (error) {
-      toast({
-        title: "Sign Up Failed",
-        description: error.message,
-        variant: "destructive"
-      });
+      toast.error(`Sign Up Failed: ${error.message}`);
     } else {
-      toast({
-        title: "Success",
-        description: "Account created successfully! Please check your email to verify your account."
+      toast.success('Account created successfully!', {
+        description: 'Please check your email and click the verification link, then return to sign in.',
+        duration: 6000
       });
-      navigate('/signin');
+      // Show additional notification
+      setTimeout(() => {
+        toast.info('📧 Check Your Email', {
+          description: 'Look for the Supabase authentication email and click the verification link to activate your account.',
+          duration: 8000
+        });
+      }, 1000);
+      
+      // Navigate to sign in after a delay
+      setTimeout(() => {
+        navigate('/signin');
+      }, 2000);
     }
     
     setLoading(false);
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-indigo-950 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex items-center justify-center space-x-2 mb-4">
-            <div className="w-8 h-8 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">A</span>
+            <div className="w-8 h-8 bg-gradient-to-r from-primary to-primary/80 rounded-lg flex items-center justify-center">
+              <span className="text-primary-foreground font-bold text-sm">A</span>
             </div>
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">
               Aurafy
             </h1>
           </div>
@@ -119,7 +117,7 @@ const SignUp = () => {
           </form>
           <div className="mt-4 text-center text-sm">
             Already have an account?{' '}
-            <Link to="/signin" className="text-indigo-600 hover:underline">
+            <Link to="/signin" className="text-primary hover:underline">
               Sign in
             </Link>
           </div>
