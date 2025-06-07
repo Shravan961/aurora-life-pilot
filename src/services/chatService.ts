@@ -1,4 +1,3 @@
-
 import { GROQ_API_KEY, COHERE_API_KEY } from '@/utils/constants';
 import { webSearchService } from './webSearchService';
 import { format, parseISO, isToday, isTomorrow, isYesterday } from 'date-fns';
@@ -60,7 +59,19 @@ If a user asks about current events, weather, or information that requires real-
     }
     
     if (context?.taskData) {
-      prompt += `\n\nTask Context: The user has the following tasks: ${JSON.stringify(context.taskData)}`;
+      const { todaysTasks, completedCount, totalCount, pendingTasks } = context.taskData;
+      prompt += `\n\nTask Context: You have access to the user's tasks:
+- Total tasks for today: ${totalCount}
+- Completed tasks: ${completedCount}
+- Pending tasks: ${pendingTasks.length}
+- Task details: ${JSON.stringify(todaysTasks)}
+
+When discussing tasks:
+1. Be specific about task names and their status
+2. Provide encouraging feedback on task completion
+3. Help prioritize remaining tasks
+4. Suggest breaks if the user has completed many tasks
+5. Offer to show task details when relevant`;
     }
     
     if (context?.moodData) {
@@ -128,26 +139,49 @@ If a user asks about current events, weather, or information that requires real-
   private formatTasksResponse(tasks: any[], dateContext?: string): string {
     if (!tasks || tasks.length === 0) {
       return dateContext ? 
-        `No tasks found for ${dateContext}.` : 
-        'You currently have no tasks scheduled.';
+        `You don't have any tasks scheduled for ${dateContext}. Would you like me to help you plan some tasks?` : 
+        'You currently have no tasks scheduled. Would you like to create some tasks to stay organized?';
     }
 
+    const completedTasks = tasks.filter(t => t.completed);
+    const pendingTasks = tasks.filter(t => !t.completed);
+
     let response = dateContext ? 
-      `📅 Tasks for ${dateContext}:\n\n` : 
-      '📋 Your Tasks:\n\n';
+      `📅 Here's your task summary for ${dateContext}:\n\n` : 
+      '📋 Here's your task summary:\n\n';
 
-    tasks.forEach((task, index) => {
-      response += `${index + 1}. **${task.title}**\n`;
-      response += `   📅 Due: ${format(parseISO(task.dueDate), 'EEEE, MMMM do, yyyy')}\n`;
-      response += `   ✅ Status: ${task.completed ? 'Completed' : 'Pending'}\n`;
-      if (task.note) {
-        response += `   📝 Note: ${task.note}\n`;
-      }
+    if (pendingTasks.length > 0) {
+      response += '⏳ Pending Tasks:\n';
+      pendingTasks.forEach((task, index) => {
+        response += `${index + 1}. ${task.title}\n`;
+        if (task.note) {
+          response += `   📝 ${task.note}\n`;
+        }
+      });
       response += '\n';
-    });
+    }
 
-    const completedCount = tasks.filter(t => t.completed).length;
-    response += `📊 Summary: ${completedCount}/${tasks.length} tasks completed`;
+    if (completedTasks.length > 0) {
+      response += '✅ Completed Tasks:\n';
+      completedTasks.forEach((task, index) => {
+        response += `${index + 1}. ${task.title}\n`;
+      });
+      response += '\n';
+    }
+
+    response += `📊 Progress: ${completedTasks.length}/${tasks.length} tasks completed\n`;
+
+    // Add encouraging message based on completion rate
+    const completionRate = completedTasks.length / tasks.length;
+    if (completionRate === 1) {
+      response += "\n🎉 Amazing job! You've completed all your tasks!";
+    } else if (completionRate >= 0.7) {
+      response += "\n🌟 Great progress! You're almost there!";
+    } else if (completionRate >= 0.3) {
+      response += "\n💪 Keep going! You're making good progress.";
+    } else {
+      response += "\n🚀 Take it one task at a time, you've got this!";
+    }
 
     return response;
   }
