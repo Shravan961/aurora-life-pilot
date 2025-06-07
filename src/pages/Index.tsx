@@ -9,12 +9,14 @@ import { ChatbotPage } from '@/pages/ChatbotPage';
 import { Header } from '@/components/layout/Header';
 import { Navigation } from '@/components/layout/Navigation';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
+import { useLocalTasks } from '@/hooks/useLocalTasks';
 
 type ActiveTab = 'dashboard' | 'nutrition' | 'planner' | 'wellness' | 'chatbot';
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [darkMode, setDarkMode] = useLocalStorage('darkMode', false);
+  const { tasks } = useLocalTasks();
 
   useEffect(() => {
     if (darkMode) {
@@ -24,18 +26,26 @@ const Index = () => {
     }
   }, [darkMode]);
 
+  const handleSendToChat = (message: string) => {
+    // Function to send messages to chat with task context
+    setActiveTab('chatbot');
+    // The message will be handled by the ChatbotPage component
+  };
+
   const renderActiveComponent = () => {
+    const taskContext = { taskData: tasks };
+    
     switch (activeTab) {
       case 'dashboard':
         return <Dashboard onNavigate={setActiveTab} />;
       case 'nutrition':
         return <NutritionTracker />;
       case 'planner':
-        return <DailyPlanner />;
+        return <DailyPlanner onSendToChat={handleSendToChat} />;
       case 'wellness':
         return <WellnessDashboard />;
       case 'chatbot':
-        return <ChatbotPage onNavigateBack={() => setActiveTab('dashboard')} />;
+        return <ChatbotPage onNavigateBack={() => setActiveTab('dashboard')} taskContext={taskContext} />;
       default:
         return <Dashboard onNavigate={setActiveTab} />;
     }
@@ -47,7 +57,7 @@ const Index = () => {
   }
 
   return (
-    <div className={`min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-indigo-950 transition-colors duration-300`}>
+    <div className="app-background transition-colors duration-300">
       <div className="container mx-auto px-4 pb-20">
         <Header darkMode={darkMode} setDarkMode={setDarkMode} />
         

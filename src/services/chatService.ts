@@ -1,6 +1,7 @@
 
 import { GROQ_API_KEY, COHERE_API_KEY } from '@/utils/constants';
 import { webSearchService } from './webSearchService';
+import { format, parseISO, isToday, isTomorrow, isYesterday } from 'date-fns';
 
 interface ChatContext {
   nutritionData?: any;
@@ -93,16 +94,20 @@ If a user asks about current events, weather, or information that requires real-
       return 'web_search';
     }
     
+    // Enhanced task query detection
+    if (lowerMessage.includes('task') || lowerMessage.includes('todo') || lowerMessage.includes('due') || 
+        lowerMessage.includes('complete') || lowerMessage.includes('schedule') || lowerMessage.includes('plan') ||
+        lowerMessage.includes('tomorrow') || lowerMessage.includes('today') || lowerMessage.includes('yesterday') ||
+        lowerMessage.includes('next week') || lowerMessage.includes('this week')) {
+      return 'task_query';
+    }
+    
     // Cross-section analysis patterns
     if (lowerMessage.includes('pattern') || lowerMessage.includes('relationship') || lowerMessage.includes('connection') || 
         (lowerMessage.includes('mood') && (lowerMessage.includes('food') || lowerMessage.includes('nutrition'))) ||
         (lowerMessage.includes('symptom') && (lowerMessage.includes('food') || lowerMessage.includes('mood'))) ||
         lowerMessage.includes('related to') || lowerMessage.includes('affect')) {
       return 'cross_analysis';
-    }
-    
-    if (lowerMessage.includes('task') || lowerMessage.includes('todo') || lowerMessage.includes('due') || lowerMessage.includes('complete')) {
-      return 'task_query';
     }
     
     if (lowerMessage.includes('eat') || lowerMessage.includes('meal') || lowerMessage.includes('food') || lowerMessage.includes('calorie') || lowerMessage.includes('nutrition')) {
@@ -120,6 +125,61 @@ If a user asks about current events, weather, or information that requires real-
     return 'general';
   }
 
+  private formatTasksResponse(tasks: any[], dateContext?: string): string {
+    if (!tasks || tasks.length === 0) {
+      return dateContext ? 
+        `No tasks found for ${dateContext}.` : 
+        'You currently have no tasks scheduled.';
+    }
+
+    let response = dateContext ? 
+      `📅 Tasks for ${dateContext}:\n\n` : 
+      '📋 Your Tasks:\n\n';
+
+    tasks.forEach((task, index) => {
+      response += `${index + 1}. **${task.title}**\n`;
+      response += `   📅 Due: ${format(parseISO(task.dueDate), 'EEEE, MMMM do, yyyy')}\n`;
+      response += `   ✅ Status: ${task.completed ? 'Completed' : 'Pending'}\n`;
+      if (task.note) {
+        response += `   📝 Note: ${task.note}\n`;
+      }
+      response += '\n';
+    });
+
+    const completedCount = tasks.filter(t => t.completed).length;
+    response += `📊 Summary: ${completedCount}/${tasks.length} tasks completed`;
+
+    return response;
+  }
+
+  private getTasksForDate(allTasks: any[], targetDate: string): any[] {
+    return allTasks.filter(task => task.dueDate === targetDate);
+  }
+
+  private parseDateFromMessage(message: string): string | null {
+    const today = new Date();
+    const lowerMessage = message.toLowerCase();
+    
+    if (lowerMessage.includes('today')) {
+      return format(today, 'yyyy-MM-dd');
+    }
+    
+    if (lowerMessage.includes('tomorrow')) {
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      return format(tomorrow, 'yyyy-MM-dd');
+    }
+    
+    if (lowerMessage.includes('yesterday')) {
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      return format(yesterday, 'yyyy-MM-dd');
+    }
+    
+    // Add more date parsing as needed
+    return null;
+  }
+
   async sendMessage(message: string, context?: ChatContext): Promise<string> {
     try {
       const intent = this.detectIntent(message);
@@ -129,11 +189,35 @@ If a user asks about current events, weather, or information that requires real-
         return await webSearchService.search(message);
       }
       
+      // Handle task queries with enhanced functionality
+      if (intent === 'task_query' && context?.taskData) {
+        const targetDate = this.parseDateFromMessage(message);
+        
+        if (targetDate) {
+          const tasksForDate = this.getTasksForDate(context.taskData, targetDate);
+          const dateLabel = this.getDateLabel(targetDate);
+          return this.formatTasksResponse(tasksForDate, dateLabel);
+        } else {
+          // General task query - show all tasks
+          return this.formatTasksResponse(context.taskData);
+        }
+      }
+      
       return await this.callGroqAPI(message, context);
     } catch (error) {
       console.error('Chat service error:', error);
       return 'I apologize, but I\'m having trouble connecting right now. Please try again in a moment.';
     }
+  }
+
+  private getDateLabel(dateString: string): string {
+    const date = parseISO(dateString);
+    
+    if (isToday(date)) return 'today';
+    if (isTomorrow(date)) return 'tomorrow';
+    if (isYesterday(date)) return 'yesterday';
+    
+    return format(date, 'EEEE, MMMM do, yyyy');
   }
 }
 

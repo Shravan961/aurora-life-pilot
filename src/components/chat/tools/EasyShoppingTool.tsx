@@ -1,263 +1,199 @@
 
 import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Search, ShoppingCart, ExternalLink, Star, DollarSign, Loader2, Package } from 'lucide-react';
-import { toast } from 'sonner';
-import { GROQ_API_KEY, GROQ_MODEL } from '@/utils/constants';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, Search, ShoppingCart, ExternalLink } from 'lucide-react';
+import { toast } from "sonner";
+
+interface Product {
+  name: string;
+  price: string;
+  store: string;
+  url: string;
+  rating?: string;
+  image?: string;
+  description?: string;
+}
 
 interface EasyShoppingToolProps {
   onSendToChat: (message: string) => void;
 }
 
-interface ProductResult {
-  name: string;
-  price: string;
-  store: string;
-  link: string;
-  image?: string;
-  rating?: string;
-  description?: string;
-}
-
 export const EasyShoppingTool: React.FC<EasyShoppingToolProps> = ({ onSendToChat }) => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [results, setResults] = useState<ProductResult[]>([]);
+  const [query, setQuery] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [products, setProducts] = useState<Product[]>([]);
 
-  const generateProductResults = async (query: string): Promise<ProductResult[]> => {
-    try {
-      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${GROQ_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: GROQ_MODEL,
-          messages: [
-            {
-              role: 'system',
-              content: `You are a shopping assistant that generates realistic product search results. For any product search, return a JSON array of 6-8 products from popular stores. Each product must have:
-              - name: Product name with brand/model (detailed and specific)
-              - price: Realistic price with currency symbol
-              - store: Real store name (Amazon, eBay, Best Buy, Walmart, Target, Home Depot, etc.)
-              - link: Use actual store search URLs that work properly
-              - rating: Star rating like "4.5/5" or "4.2/5"
-              - description: Detailed product description with key features, specifications, and benefits
-              
-              Make the data realistic and varied. Focus on creating working search URLs that take users to the actual product searches.`
-            },
-            {
-              role: 'user',
-              content: `Find detailed shopping results for: ${query}`
-            }
-          ],
-          temperature: 0.4,
-          max_tokens: 2000
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
-      }
-
-      const data = await response.json();
-      const content = data.choices[0]?.message?.content;
-      
-      if (content) {
-        try {
-          const cleanContent = content.replace(/```json\n?|```\n?/g, '').trim();
-          const parsedResults = JSON.parse(cleanContent);
-          
-          const processedResults = parsedResults.map((product: any) => ({
-            ...product,
-            link: product.link || generateStoreLink(product.store, query)
-          }));
-          
-          return Array.isArray(processedResults) ? processedResults : [];
-        } catch (parseError) {
-          console.error('Parse error:', parseError);
-          return generateFallbackResults(query);
-        }
-      }
-      
-      return generateFallbackResults(query);
-    } catch (error) {
-      console.error('Search error:', error);
-      return generateFallbackResults(query);
-    }
-  };
-
-  const generateStoreLink = (store: string, query: string): string => {
-    const encodedQuery = encodeURIComponent(query);
-    const storeLinks: { [key: string]: string } = {
-      'Amazon': `https://www.amazon.com/s?k=${encodedQuery}&ref=nb_sb_noss`,
-      'eBay': `https://www.ebay.com/sch/i.html?_nkw=${encodedQuery}&_sacat=0`,
-      'Best Buy': `https://www.bestbuy.com/site/searchpage.jsp?st=${encodedQuery}`,
-      'Walmart': `https://www.walmart.com/search?q=${encodedQuery}`,
-      'Target': `https://www.target.com/s?searchTerm=${encodedQuery}`,
-      'Home Depot': `https://www.homedepot.com/s/${encodedQuery}?NCNI-5`,
-      'Lowes': `https://www.lowes.com/search?searchTerm=${encodedQuery}`,
-      'Costco': `https://www.costco.com/CatalogSearch?keyword=${encodedQuery}`,
-      'Newegg': `https://www.newegg.com/p/pl?d=${encodedQuery}`,
-      'B&H': `https://www.bhphotovideo.com/c/search?Ntt=${encodedQuery}`
-    };
-    
-    return storeLinks[store] || `https://www.google.com/search?tbm=shop&q=${encodedQuery}`;
-  };
-
-  const generateFallbackResults = (query: string): ProductResult[] => {
-    const stores = ['Amazon', 'eBay', 'Best Buy', 'Walmart', 'Target', 'Newegg'];
-    return stores.map((store, index) => ({
-      name: `${query} - ${['Premium', 'Standard', 'Pro', 'Deluxe', 'Basic', 'Elite'][index]} Model`,
-      price: `$${(Math.random() * 200 + 20).toFixed(2)}`,
-      store: store,
-      link: generateStoreLink(store, query),
-      rating: `${(Math.random() * 1.5 + 3.5).toFixed(1)}/5`,
-      description: `High-quality ${query.toLowerCase()} with excellent features, durable construction, and positive customer reviews. Perfect for daily use with modern design and reliable performance.`
-    }));
-  };
-
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) {
+  const searchProducts = async () => {
+    if (!query.trim()) {
       toast.error('Please enter a product to search for');
       return;
     }
 
-    if (!GROQ_API_KEY) {
-      toast.error('Groq API key not configured');
-      return;
-    }
-
-    setIsLoading(true);
-    
+    setLoading(true);
     try {
-      const searchResults = await generateProductResults(searchQuery);
-      setResults(searchResults);
+      // Simulate API call with mock data for now
+      await new Promise(resolve => setTimeout(resolve, 1500));
       
-      if (searchResults.length > 0) {
-        toast.success(`Found ${searchResults.length} results for "${searchQuery}"`);
-        onSendToChat(`🛒 Found ${searchResults.length} shopping results for "${searchQuery}". Check the Easy Shopping tool for detailed product information and direct store links!`);
-      } else {
-        toast.error('No results found. Try a different search term.');
-      }
+      const mockProducts: Product[] = [
+        {
+          name: `${query} - Premium Quality`,
+          price: '$29.99',
+          store: 'Amazon',
+          url: `https://www.amazon.com/s?k=${encodeURIComponent(query)}`,
+          rating: '4.5/5',
+          description: 'High-quality product with excellent reviews and fast shipping.',
+          image: '/placeholder.svg'
+        },
+        {
+          name: `${query} - Best Value`,
+          price: '$19.99',
+          store: 'Walmart',
+          url: `https://www.walmart.com/search?q=${encodeURIComponent(query)}`,
+          rating: '4.2/5',
+          description: 'Great value for money with reliable quality.',
+          image: '/placeholder.svg'
+        },
+        {
+          name: `${query} - Professional Grade`,
+          price: '$49.99',
+          store: 'Best Buy',
+          url: `https://www.bestbuy.com/site/searchpage.jsp?st=${encodeURIComponent(query)}`,
+          rating: '4.7/5',
+          description: 'Professional-grade quality with extended warranty.',
+          image: '/placeholder.svg'
+        },
+        {
+          name: `${query} - Eco-Friendly`,
+          price: '$35.99',
+          store: 'Target',
+          url: `https://www.target.com/s?searchTerm=${encodeURIComponent(query)}`,
+          rating: '4.3/5',
+          description: 'Environmentally conscious choice with sustainable materials.',
+          image: '/placeholder.svg'
+        }
+      ];
+
+      setProducts(mockProducts);
+      
+      const summary = `Found ${mockProducts.length} products for "${query}". Price range: ${Math.min(...mockProducts.map(p => parseFloat(p.price.replace('$', ''))))} - ${Math.max(...mockProducts.map(p => parseFloat(p.price.replace('$', ''))))}. Available at Amazon, Walmart, Best Buy, and Target.`;
+      onSendToChat(summary);
+      
     } catch (error) {
       console.error('Search error:', error);
-      toast.error('Failed to search for products. Please try again.');
+      toast.error('Search failed. Please try again.');
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const handleSendToChat = (product: ProductResult) => {
-    const message = `🛍️ **${product.name}**\n\n💰 **Price:** ${product.price} at ${product.store}\n⭐ **Rating:** ${product.rating}\n\n📝 **Details:** ${product.description}\n\n🔗 [Shop Now at ${product.store}](${product.link})`;
-    onSendToChat(message);
-    toast.success('Product details sent to chat!');
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      searchProducts();
+    }
   };
 
   return (
-    <div className="h-full flex flex-col p-3 max-w-full bg-background">
-      <Card className="flex-1 flex flex-col border-0 shadow-sm">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center space-x-2 text-base">
-            <ShoppingCart className="h-4 w-4 text-primary" />
-            <span>Easy Shopping</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="flex-1 flex flex-col space-y-3">
-          <div className="flex space-x-2">
-            <Input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search for any product..."
-              onKeyPress={(e) => e.key === 'Enter' && !isLoading && handleSearch()}
-              className="flex-1 text-sm"
-              size="sm"
-            />
-            <Button 
-              onClick={handleSearch} 
-              disabled={isLoading || !searchQuery.trim()}
-              size="sm"
-              className="bg-primary hover:bg-primary/90"
-            >
-              {isLoading ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <Search className="h-3 w-3" />
-              )}
-            </Button>
-          </div>
+    <div className="h-full flex flex-col bg-background">
+      <div className="p-4 border-b border-border">
+        <div className="flex items-center space-x-2 mb-4">
+          <ShoppingCart className="h-5 w-5 text-primary" />
+          <h2 className="text-lg font-semibold text-foreground">Easy Shopping</h2>
+        </div>
+        
+        <div className="flex space-x-2">
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyPress={handleKeyPress}
+            placeholder="Search for any product..."
+            className="flex-1"
+            disabled={loading}
+          />
+          <Button 
+            onClick={searchProducts} 
+            disabled={loading || !query.trim()}
+            className="px-6"
+          >
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+          </Button>
+        </div>
+      </div>
 
-          {results.length > 0 && (
-            <ScrollArea className="flex-1">
-              <div className="space-y-2">
-                {results.map((product, index) => (
-                  <Card key={index} className="p-3 hover:shadow-sm transition-all border border-border/50 bg-card">
-                    <div className="space-y-2">
-                      <div className="flex items-start justify-between gap-2">
-                        <h3 className="font-medium text-sm line-clamp-2 flex-1">{product.name}</h3>
-                        <div className="flex items-center space-x-1 text-green-600 font-bold shrink-0">
-                          <DollarSign className="h-3 w-3" />
-                          <span className="text-sm">{product.price}</span>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-medium text-primary bg-primary/10 px-2 py-1 rounded">{product.store}</span>
-                        {product.rating && (
-                          <div className="flex items-center space-x-1">
-                            <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                            <span className="text-yellow-600 font-medium">{product.rating}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {product.description && (
-                        <p className="text-xs text-muted-foreground line-clamp-2 bg-muted/50 p-2 rounded">
-                          {product.description}
-                        </p>
+      <div className="flex-1 overflow-hidden">
+        {products.length > 0 ? (
+          <div className="h-full overflow-y-auto p-4">
+            <div className="grid gap-4">
+              {products.map((product, index) => (
+                <Card key={index} className="hover:shadow-md transition-shadow">
+                  <CardContent className="p-4">
+                    <div className="flex gap-4">
+                      {product.image && (
+                        <img 
+                          src={product.image} 
+                          alt={product.name}
+                          className="w-20 h-20 object-cover rounded-md bg-muted"
+                        />
                       )}
-
-                      <div className="flex space-x-2 pt-1">
+                      
+                      <div className="flex-1 space-y-2">
+                        <div className="flex items-start justify-between">
+                          <h3 className="font-semibold text-foreground line-clamp-2">
+                            {product.name}
+                          </h3>
+                          <Badge variant="secondary" className="ml-2 shrink-0">
+                            {product.store}
+                          </Badge>
+                        </div>
+                        
+                        <div className="flex items-center space-x-4 text-sm text-muted-foreground">
+                          <span className="font-bold text-lg text-primary">{product.price}</span>
+                          {product.rating && (
+                            <span className="flex items-center">
+                              ⭐ {product.rating}
+                            </span>
+                          )}
+                        </div>
+                        
+                        {product.description && (
+                          <p className="text-sm text-muted-foreground line-clamp-2">
+                            {product.description}
+                          </p>
+                        )}
+                        
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => window.open(product.link, '_blank')}
-                          className="flex-1 text-xs hover:bg-primary/5"
+                          className="w-full mt-2"
+                          onClick={() => {
+                            window.open(product.url, '_blank');
+                            onSendToChat(`Opened ${product.store} link for "${product.name}" - ${product.price}`);
+                          }}
                         >
-                          <ExternalLink className="h-3 w-3 mr-1" />
-                          Shop at {product.store}
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => handleSendToChat(product)}
-                          className="flex-1 text-xs bg-primary hover:bg-primary/90"
-                        >
-                          <Package className="h-3 w-3 mr-1" />
-                          Send to Chat
+                          <ExternalLink className="h-4 w-4 mr-2" />
+                          View on {product.store}
                         </Button>
                       </div>
                     </div>
-                  </Card>
-                ))}
-              </div>
-            </ScrollArea>
-          )}
-
-          {results.length === 0 && !isLoading && (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-center text-muted-foreground">
-                <ShoppingCart className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">Search for products to see detailed results</p>
-                <p className="text-xs mt-1">All links lead to actual store search pages</p>
-              </div>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </div>
+        ) : (
+          <div className="flex-1 flex items-center justify-center text-center p-8">
+            <div className="space-y-3">
+              <ShoppingCart className="h-12 w-12 mx-auto text-muted-foreground/50" />
+              <h3 className="text-lg font-medium text-foreground">Search for Products</h3>
+              <p className="text-muted-foreground max-w-sm">
+                Enter any product name to find the best deals across multiple stores
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

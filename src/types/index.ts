@@ -1,4 +1,3 @@
-
 export interface NutritionEntry {
   id: string;
   query: string;
@@ -25,6 +24,7 @@ export interface Task {
   dueDate: string;
   completed: boolean;
   timestamp: number;
+  note?: string;
 }
 
 export interface MoodLog {

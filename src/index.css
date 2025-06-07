@@ -43,6 +43,9 @@
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* Light theme - light blue background */
+    --app-background: 219 100% 96%;
   }
 
   .dark {
@@ -81,6 +84,9 @@
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* Dark theme - dark blue background */
+    --app-background: 218 50% 8%;
   }
 }
 
@@ -95,6 +101,12 @@
 
   html, body, #root {
     @apply bg-background;
+    min-height: 100vh;
+  }
+
+  /* App background for main pages */
+  .app-background {
+    background-color: hsl(var(--app-background));
     min-height: 100vh;
   }
 
