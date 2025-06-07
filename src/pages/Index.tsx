@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Dashboard } from '@/components/dashboard/Dashboard';
@@ -34,7 +33,7 @@ const Index = () => {
 
   const renderActiveComponent = () => {
     const taskContext = { taskData: tasks };
-    
+
     switch (activeTab) {
       case 'dashboard':
         return <Dashboard onNavigate={setActiveTab} />;
@@ -45,7 +44,7 @@ const Index = () => {
       case 'wellness':
         return <WellnessDashboard />;
       case 'chatbot':
-        return <ChatbotPage onNavigateBack={() => setActiveTab('dashboard')} taskContext={taskContext} />;
+        return <ChatbotPage onNavigateBack={() => setActiveTab('dashboard')} taskContext={taskContext} />; // Ensure taskContext is passed correctly
       default:
         return <Dashboard onNavigate={setActiveTab} />;
     }
