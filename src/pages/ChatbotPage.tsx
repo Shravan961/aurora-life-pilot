@@ -18,12 +18,9 @@ import { toast } from "sonner";
 
 interface ChatbotPageProps {
   onNavigateBack: () => void;
-  taskContext?: {
-    taskData: any[];
-  };
 }
 
-export const ChatbotPage: React.FC<ChatbotPageProps> = ({ onNavigateBack, taskContext }) => {
+export const ChatbotPage: React.FC<ChatbotPageProps> = ({ onNavigateBack }) => {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showToolkit, setShowToolkit] = useState(false);
@@ -168,22 +165,18 @@ export const ChatbotPage: React.FC<ChatbotPageProps> = ({ onNavigateBack, taskCo
       return { deactivateClone: true };
     }
 
-    // Always include task data if available
-    if (taskContext?.taskData || getTodaysTasks().length > 0) {
-      context.taskData = {
-        todaysTasks: taskContext?.taskData || getTodaysTasks(),
-        completedCount: getTodaysCompletedCount(),
-        totalCount: getTodaysTotalCount(),
-        pendingTasks: getTodaysTasks().filter(task => !task.completed)
-      };
-    }
-
     // For cross-analysis queries, include all relevant data
-    if (intent === 'cross_analysis' || intent === 'task_query') {
+    if (intent === 'cross_analysis') {
       context.nutritionData = {
         todaysCalories: getTodaysCalories(),
         todaysEntries: getTodaysEntries(),
         totalEntries: getTodaysEntries().length
+      };
+      context.taskData = {
+        todaysTasks: getTodaysTasks(),
+        completedCount: getTodaysCompletedCount(),
+        totalCount: getTodaysTotalCount(),
+        pendingTasks: getTodaysTasks().filter(task => !task.completed)
       };
       context.moodData = {
         todaysMood: getTodaysMoodScore(),
@@ -200,6 +193,29 @@ export const ChatbotPage: React.FC<ChatbotPageProps> = ({ onNavigateBack, taskCo
           todaysCalories: getTodaysCalories(),
           todaysEntries: getTodaysEntries(),
           totalEntries: getTodaysEntries().length
+        };
+      }
+
+      if (intent === 'task_query') {
+        context.taskData = {
+          todaysTasks: getTodaysTasks(),
+          completedCount: getTodaysCompletedCount(),
+          totalCount: getTodaysTotalCount(),
+          pendingTasks: getTodaysTasks().filter(task => !task.completed)
+        };
+      }
+
+      if (intent === 'mood_query') {
+        context.moodData = {
+          todaysMood: getTodaysMoodScore(),
+          latestMood: getLatestMood(),
+          weeklyAverage: getWeeklyAverage()
+        };
+      }
+
+      if (intent === 'symptom_query') {
+        context.symptomData = {
+          recentSymptoms: symptoms.slice(0, 5)
         };
       }
     }
@@ -232,74 +248,63 @@ export const ChatbotPage: React.FC<ChatbotPageProps> = ({ onNavigateBack, taskCo
   };
 
   const handleSendMessage = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() || isLoading) return;
 
     const userMessage: ChatMessage = {
       id: generateId(),
-      role: 'user',
-      content: input.trim(),
-      timestamp: getTimestamp()
+      sender: 'user',
+      text: input.trim(),
+      timestamp: getTimestamp(),
     };
 
+    await addMessage(userMessage);
+    const messageText = input.trim();
     setInput('');
     setIsLoading(true);
-    await addMessage(userMessage);
 
     try {
-      const context = buildContext(userMessage.content);
+      const context = buildContext(messageText);
+      
       if (context.deactivateClone) {
-        const response = "I'm back to my normal self now. How can I help you?";
-        const botMessage: ChatMessage = {
+        const auroraMessage: ChatMessage = {
           id: generateId(),
-          role: 'assistant',
-          content: response,
-          timestamp: getTimestamp()
+          sender: 'aurora',
+          text: 'I\'ve returned to normal mode. How can I help you?',
+          timestamp: getTimestamp(),
         };
-        await addMessage(botMessage);
-      } else {
-        const response = await chatService.sendMessage(userMessage.content, context);
-        const botMessage: ChatMessage = {
-          id: generateId(),
-          role: 'assistant',
-          content: response,
-          timestamp: getTimestamp()
-        };
-        await addMessage(botMessage);
+        await addMessage(auroraMessage);
+        setIsLoading(false);
+        return;
       }
+
+      // Use clone prompt if active
+      let prompt = messageText;
+      if (activeClone) {
+        prompt = `${activeClone.system_prompt}\n\nUser: ${messageText}`;
+      }
+
+      const response = await chatService.sendMessage(prompt, context);
+      
+      const auroraMessage: ChatMessage = {
+        id: generateId(),
+        sender: 'aurora',
+        text: response,
+        timestamp: getTimestamp(),
+      };
+
+      await addMessage(auroraMessage);
     } catch (error) {
-      console.error('Error getting response:', error);
+      console.error('Chat error:', error);
       const errorMessage: ChatMessage = {
         id: generateId(),
-        role: 'assistant',
-        content: "I apologize, but I encountered an error. Let me check your tasks directly:\n\n" +
-                formatTaskResponse(taskContext?.taskData || getTodaysTasks()),
-        timestamp: getTimestamp()
+        sender: 'aurora',
+        text: 'I apologize, but I encountered an error. Please try again.',
+        timestamp: getTimestamp(),
       };
       await addMessage(errorMessage);
+    } finally {
+      setIsLoading(false);
     }
-
-    setIsLoading(false);
-  };
-
-  const formatTaskResponse = (tasks: any[]) => {
-    if (!tasks || tasks.length === 0) {
-      return "You don't have any tasks scheduled for today.";
-    }
-
-    let response = "📋 Here are your tasks:\n\n";
-    tasks.forEach((task, index) => {
-      response += `${index + 1}. ${task.title}\n`;
-      response += `   Status: ${task.completed ? '✅ Completed' : '⏳ Pending'}\n`;
-      if (task.note) {
-        response += `   Note: ${task.note}\n`;
-      }
-      response += '\n';
-    });
-
-    const completedCount = tasks.filter(t => t.completed).length;
-    response += `\n📊 Progress: ${completedCount}/${tasks.length} tasks completed`;
-
-    return response;
   };
 
   const handleVoiceInput = async () => {
