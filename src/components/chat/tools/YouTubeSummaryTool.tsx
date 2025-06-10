@@ -1,3 +1,4 @@
+/// <reference types="youtube-transcript" />
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -57,57 +58,119 @@ export const YouTubeSummaryTool: React.FC<YouTubeSummaryToolProps> = ({ onSendTo
     }
 
     // Try alternative method with CORS proxy
-    try {
-      const response = await fetch(`https://corsproxy.io/?https://www.youtube.com/watch?v=${videoId}`);
-      const html = await response.text();
-      
-      // Look for captions in the page
-      const captionMatch = html.match(/"captions":({.*?})/);
-      if (captionMatch) {
-        console.log('Found caption data in page');
-        // This would need more complex parsing, so we'll fall back to metadata
+    const corsProxies = [
+      'https://corsproxy.io/',
+      'https://api.allorigins.win/raw?url=',
+      'https://cors-anywhere.herokuapp.com/'
+    ];
+
+    for (const proxy of corsProxies) {
+      try {
+        const response = await fetch(`${proxy}https://www.youtube.com/watch?v=${videoId}`);
+        if (!response.ok) continue;
+        
+        const html = await response.text();
+        
+        // Try multiple methods to extract captions
+        const patterns = [
+          /"captionTracks":\[(.*?)\]/,
+          /"playerCaptionsTracklistRenderer":\{(.*?)\}/,
+          /"captions":\{(.*?)\}/
+        ];
+
+        for (const pattern of patterns) {
+          const match = html.match(pattern);
+          if (match) {
+            try {
+              const captionData = JSON.parse(`{${match[1]}}`);
+              if (captionData.baseUrl || captionData.url) {
+                const captionUrl = captionData.baseUrl || captionData.url;
+                const captionResponse = await fetch(`${proxy}${captionUrl}`);
+                const captionText = await captionResponse.text();
+                if (captionText) {
+                  return captionText.replace(/<[^>]*>/g, ' ').trim();
+                }
+              }
+            } catch (e) {
+              console.log('Caption parsing error:', e);
+              continue;
+            }
+          }
+        }
+      } catch (error) {
+        console.log(`CORS proxy ${proxy} failed:`, error);
+        continue;
       }
-    } catch (error) {
-      console.log('CORS proxy method failed:', error);
     }
 
     return null;
   };
 
   const fetchVideoMetadata = async (videoId: string): Promise<{ title: string; description?: string }> => {
-    try {
-      const response = await fetch(`https://corsproxy.io/?https://www.youtube.com/watch?v=${videoId}`);
-      const html = await response.text();
-      
-      // Extract title using multiple methods
-      let title = '';
-      const titleMatch = html.match(/<title>(.+?)<\/title>/);
-      if (titleMatch) {
-        title = titleMatch[1].replace(' - YouTube', '').trim();
-      }
-      
-      if (!title) {
-        const ogTitleMatch = html.match(/property="og:title" content="([^"]+)"/);
-        if (ogTitleMatch) {
-          title = ogTitleMatch[1];
+    const corsProxies = [
+      'https://corsproxy.io/',
+      'https://api.allorigins.win/raw?url=',
+      'https://cors-anywhere.herokuapp.com/'
+    ];
+
+    for (const proxy of corsProxies) {
+      try {
+        const response = await fetch(`${proxy}https://www.youtube.com/watch?v=${videoId}`);
+        if (!response.ok) continue;
+        
+        const html = await response.text();
+        
+        // Extract title using multiple methods
+        let title = '';
+        const titlePatterns = [
+          /<title>(.+?)<\/title>/,
+          /property="og:title" content="([^"]+)"/,
+          /"title":"([^"]+)"/,
+          /videoTitle":"([^"]+)"/
+        ];
+
+        for (const pattern of titlePatterns) {
+          const match = html.match(pattern);
+          if (match) {
+            title = match[1].replace(' - YouTube', '').trim();
+            if (title) break;
+          }
         }
+        
+        // Extract description using multiple methods
+        let description = '';
+        const descriptionPatterns = [
+          /property="og:description" content="([^"]+)"/,
+          /"description":"([^"]+)"/,
+          /"shortDescription":"([^"]+)"/
+        ];
+
+        for (const pattern of descriptionPatterns) {
+          const match = html.match(pattern);
+          if (match) {
+            description = match[1].trim();
+            if (description) break;
+          }
+        }
+        
+        // Try to extract additional metadata
+        let channelName = '';
+        const channelMatch = html.match(/property="og:video:tag" content="([^"]+)"/);
+        if (channelMatch) {
+          channelName = channelMatch[1];
+        }
+        
+        return {
+          title: title || `YouTube Video ${videoId}`,
+          description: description ? `${description}${channelName ? `\nChannel: ${channelName}` : ''}` : undefined
+        };
+      } catch (error) {
+        console.log(`Metadata extraction failed for proxy ${proxy}:`, error);
+        continue;
       }
-      
-      // Extract description
-      let description = '';
-      const descMatch = html.match(/property="og:description" content="([^"]+)"/);
-      if (descMatch) {
-        description = descMatch[1];
-      }
-      
-      return {
-        title: title || `YouTube Video ${videoId}`,
-        description: description || undefined
-      };
-    } catch (error) {
-      console.log('Metadata extraction failed:', error);
-      return { title: `YouTube Video ${videoId}` };
     }
+
+    return { title: `YouTube Video ${videoId}` };
   };
 
   const generateSummary = async (videoData: VideoData, isDetailed: boolean = false): Promise<string> => {
