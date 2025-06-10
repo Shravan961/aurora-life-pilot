@@ -1,4 +1,3 @@
-
 import { CALORIE_NINJAS_KEY, GEMINI_API_KEY, GROQ_API_KEY, GROQ_MODEL } from '@/utils/constants';
 import { memoryService } from './memoryService';
 
@@ -30,8 +29,8 @@ export const analyzeFoodImage = async (imageFile: File): Promise<string> => {
       reader.readAsDataURL(imageFile);
     });
 
-    // Use Gemini API for food identification
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+    // First, use Gemini to identify food items and their details
+    const geminiResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent?key=' + GEMINI_API_KEY, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -40,7 +39,17 @@ export const analyzeFoodImage = async (imageFile: File): Promise<string> => {
         contents: [{
           parts: [
             {
-              text: "Identify the food items in this image. Provide the name of each food item, estimated portion size, and any visible details that would help determine nutritional content. Be specific about quantities (e.g., '1 medium apple', '2 slices of bread', '1 cup of rice'). If multiple items are visible, list them all separately."
+              text: `Analyze this food image and provide:
+1. List each food item visible
+2. Estimate portion sizes and quantities
+3. Identify main ingredients
+4. Note any visible preparation methods (e.g., grilled, fried, raw)
+5. Estimate approximate serving size
+6. Note any visible condiments or toppings
+7. Identify if this is a complete meal or snack
+8. Note any visible nutritional concerns (e.g., excessive oil, large portions)
+
+Format your response in a structured way, focusing on accuracy for nutritional analysis.`
             },
             {
               inline_data: {
@@ -51,24 +60,24 @@ export const analyzeFoodImage = async (imageFile: File): Promise<string> => {
           ]
         }],
         generationConfig: {
-          temperature: 0.3,
-          maxOutputTokens: 500
+          temperature: 0.2,
+          maxOutputTokens: 1000
         }
       })
     });
 
-    if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.status}`);
+    if (!geminiResponse.ok) {
+      throw new Error(`Gemini API error: ${geminiResponse.status}`);
     }
 
-    const data = await response.json();
-    const identifiedFood = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    
-    if (!identifiedFood) {
-      throw new Error('Could not identify food in image');
+    const geminiData = await geminiResponse.json();
+    const foodAnalysis = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!foodAnalysis) {
+      throw new Error('Could not analyze food in image');
     }
 
-    // Use Groq to refine the food identification for nutrition lookup
+    // Use Groq to process the Gemini analysis and generate a nutrition-friendly query
     const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -80,37 +89,79 @@ export const analyzeFoodImage = async (imageFile: File): Promise<string> => {
         messages: [
           {
             role: 'system',
-            content: 'You are a nutrition expert. Convert food descriptions into simple, nutrition-database-friendly queries. Return only the food name and quantity in a format suitable for CalorieNinja API.'
+            content: `You are a nutrition expert that converts detailed food descriptions into accurate nutrition database queries.
+Your task is to:
+1. Parse the food analysis
+2. Convert it into a precise query for nutritional lookup
+3. Include quantities and portion sizes
+4. Separate multiple items with commas
+5. Use standard measurements (cups, grams, pieces, etc.)
+6. Be specific about preparation methods that affect nutrition
+7. Include major ingredients that contribute to nutritional value`
           },
           {
             role: 'user',
-            content: `Convert this food identification into a simple query: ${identifiedFood}`
+            content: `Convert this food analysis into a nutrition database query:\n${foodAnalysis}`
           }
         ],
         temperature: 0.2,
-        max_tokens: 100
+        max_tokens: 200
       })
     });
 
     const groqData = await groqResponse.json();
-    const refinedQuery = groqData.choices[0]?.message?.content || identifiedFood;
+    const nutritionQuery = groqData.choices[0]?.message?.content;
 
-    // Save the food identification to memory
+    // Get additional nutritional insights using Gemini
+    const insightsResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=' + GEMINI_API_KEY, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: `Based on this food analysis, provide brief health insights:
+${foodAnalysis}
+
+Focus on:
+1. Overall nutritional value
+2. Portion size appropriateness
+3. Balance of macronutrients
+4. Any health benefits or concerns
+5. Suggestions for healthier alternatives if needed
+6. Estimated calorie range
+
+Keep it concise but informative.`
+          }]
+        }],
+        generationConfig: {
+          temperature: 0.3,
+          maxOutputTokens: 500
+        }
+      })
+    });
+
+    const insightsData = await insightsResponse.json();
+    const nutritionalInsights = insightsData.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    // Save the analysis to memory
     memoryService.addMemory({
       type: 'chat',
-      title: `Food Identified: ${refinedQuery}`,
-      content: `Original Gemini identification: ${identifiedFood}\nRefined query: ${refinedQuery}`,
-      metadata: { 
+      title: 'Food Image Analysis',
+      content: `Analyzed Food Items:\n${foodAnalysis}\n\nNutritional Insights:\n${nutritionalInsights}`,
+      metadata: {
         foodIdentification: true,
-        originalGeminiResult: identifiedFood,
-        refinedQuery: refinedQuery
+        originalAnalysis: foodAnalysis,
+        nutritionalInsights: nutritionalInsights,
+        nutritionQuery: nutritionQuery
       }
     });
 
-    return refinedQuery;
+    return nutritionQuery || 'Could not generate nutrition query';
   } catch (error) {
     console.error('Food image analysis error:', error);
-    throw new Error('Unable to identify food in image. Please try again or enter manually.');
+    throw new Error('Unable to analyze food image. Please try again or enter manually.');
   }
 };
 
